@@ -4,7 +4,6 @@ Everything else in the project calls `speak` and `transcribe` and doesn't touch 
 """
 from __future__ import annotations
 
-import re
 from typing import Callable, Iterator
 
 from . import elevenlabs, settings, speech
@@ -41,19 +40,6 @@ def listening_for(setup: BusinessSetup) -> str:
     return "" if any(language.strip() for language in setup.other_languages) else setup.language
 
 
-def pronounced(text: str, setup: BusinessSetup) -> str:
-    """The reply as the voice should say it: each "word = how to say it" swapped in.
-
-    Only the audio changes. The transcript keeps the word as it is written.
-    """
-    for line in setup.pronunciations:
-        word, _, say = line.partition("=")
-        word, say = word.strip(), say.strip()
-        if word and say:
-            text = re.sub(rf"(?<!\w){re.escape(word)}(?!\w)", lambda _: say, text, flags=re.IGNORECASE)
-    return text
-
-
 def transcribe(wav_bytes: bytes, language: str, expecting: str = "") -> str:
     """A finished recording in, the words out. `expecting` is unused: Scribe takes no context."""
     if not ready():
@@ -74,7 +60,7 @@ def speak(text: str, setup: BusinessSetup,
         return
 
     voice = voice_of(setup)
-    for sentence in speech.sentences(pronounced(text, setup)):
+    for sentence in speech.sentences(text):
         key = (voice, sentence, setup.speaking_speed)
         if key in _remembered:
             yield _remembered[key]

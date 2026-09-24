@@ -203,7 +203,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json({"error": f"{type(exc).__name__}: {exc}"}, 500)
 
     def hear_voice(self):
-        """A sample line in the voice as set up, so speed and pronunciations can be tried before a call."""
+        """A sample line in the voice as set up, so the voice and speed can be tried before a call."""
         data = self.body()
         setup = BusinessSetup(**data["setup"])
         text = (data.get("text") or "").strip()[:300]

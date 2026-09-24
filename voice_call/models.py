@@ -14,7 +14,6 @@ AnswerType = Literal["text", "number", "date", "time", "yes_no", "choice"]
 Tone = Literal["friendly", "warm", "professional", "energetic", "calm"]
 ReplyLength = Literal["brief", "balanced", "chatty"]
 Formality = Literal["casual", "neutral", "formal"]
-Empathy = Literal["low", "normal", "high"]
 
 
 class Question(BaseModel):
@@ -48,34 +47,18 @@ class BusinessSetup(BaseModel):
     tone: Tone = "friendly"
     reply_length: ReplyLength = "balanced"
     formality: Formality = "neutral"
-    empathy: Empathy = "normal"
-    humour: bool = False
-    fillers: bool = False
-    words_to_use: list[str] = Field(default_factory=list)
-    words_to_avoid: list[str] = Field(default_factory=list)
 
     # voice and speech
     voice_id: str = ""                            # empty: settings.ELEVEN_VOICE
     speaking_speed: float = Field(1.0, ge=0.7, le=1.2)
-    accent: str = ""                              # e.g. "Indian English"
     other_languages: list[str] = Field(default_factory=list)
-    number_style: Literal["natural", "digits"] = "natural"
-    currency: str = ""
-    pronunciations: list[str] = Field(default_factory=list)   # "KPN = kay pee en"
 
     # how the conversation runs
     tries_per_question: int = Field(settings.TRIES_PER_QUESTION, ge=1, le=5)
     silences_before_ending: int = Field(settings.SILENCES_BEFORE_ENDING, ge=1, le=5)
     confirm_at_end: bool = True
-    question_order: Literal["in_order", "flexible"] = "in_order"
     allow_interruptions: bool = True
     wait_after_speech_ms: int = Field(450, ge=300, le=1500)
-
-    # fixed lines: said word for word when filled in, written by the AI when empty
-    greeting: str = ""
-    goodbye: str = ""
-    early_goodbye: str = ""
-    no_answer_line: str = ""
 
     def question(self, save_as: str) -> Question | None:
         return next((q for q in self.questions if q.save_as == save_as), None)

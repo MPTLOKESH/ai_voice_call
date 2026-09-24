@@ -12,29 +12,13 @@ from .gemini import ask_ai
 from .models import Answer, BusinessSetup, Call, Question, Summary, Turn
 
 
-def personality(setup: BusinessSetup) -> str:
-    """Who the assistant is on the phone: one line per choice the business made."""
-    parts = [prompts.TONES[setup.tone], prompts.EMPATHY[setup.empathy], prompts.HUMOUR[setup.humour],
-             prompts.FILLERS[setup.fillers]]
-    if setup.accent.strip():
-        parts.append(prompts.ACCENT.format(accent=setup.accent.strip()))
-    if setup.words_to_use:
-        parts.append(prompts.WORDS_TO_USE.format(words="; ".join(setup.words_to_use)))
-    if setup.words_to_avoid:
-        parts.append(prompts.WORDS_TO_AVOID.format(words="; ".join(setup.words_to_avoid)))
-    return "\n".join(f"- {part}" for part in parts)
-
-
 def speaking(setup: BusinessSetup) -> str:
-    """The first lines of "How to speak": language, length, formality, numbers."""
+    """The first lines of "How to speak": language, length and formality."""
     others = [language for language in setup.other_languages if language.strip()]
-    lines = [prompts.LANGUAGE_SWITCH.format(language=setup.language, others=" or ".join(others)) if others
-             else prompts.LANGUAGE_ONLY.format(language=setup.language),
-             prompts.REPLY_LENGTHS[setup.reply_length], prompts.FORMALITY[setup.formality],
-             prompts.NUMBERS[setup.number_style]]
-    if setup.currency.strip():
-        lines.append(prompts.CURRENCY.format(currency=setup.currency.strip()))
-    return "\n".join(lines)
+    return "\n".join([
+        prompts.LANGUAGE_SWITCH.format(language=setup.language, others=" or ".join(others)) if others
+        else prompts.LANGUAGE_ONLY.format(language=setup.language),
+        prompts.REPLY_LENGTHS[setup.reply_length], prompts.FORMALITY[setup.formality]])
 
 
 def describe(q: Question) -> str:
@@ -56,15 +40,8 @@ def background(call: Call) -> str:
         info="\n".join(f"- {i}" for i in setup.business_info) or "- (none)",
         rules="\n".join(f"- {r}" for r in setup.rules) or "- (none)",
         questions="\n".join(describe(q) for q in setup.questions),
-        personality=personality(setup), speaking=speaking(setup),
+        tone=prompts.TONES[setup.tone], speaking=speaking(setup),
         disclosure=prompts.DISCLOSURE[setup.ai_disclosure])
-
-
-def fixed_line(call: Call, text: str) -> str:
-    """A line the business wrote, with {name}, {assistant} and {business} filled in."""
-    return (text.replace("{name}", str(call.customer.get("name") or "there"))
-                .replace("{assistant}", call.setup.assistant_name)
-                .replace("{business}", call.setup.business_name).strip())
 
 
 HOW_MANY = {1: "once", 2: "twice"}
@@ -82,10 +59,6 @@ def task_now(call: Call) -> str:
         return prompts.STEP_TASKS["confirm"]
 
     last = prompts.LAST_QUESTION if final_question(call) else ""
-    if call.setup.question_order == "flexible" and len(call.unanswered()) > 1:
-        return prompts.STEP_TASKS["ask_any"].format(
-            questions=" / ".join(f'"{q.ask}"' for q in call.unanswered()))
-
     question = call.unanswered()[0]
     # `failed` is the count code keeps of answers it refused. The model has no memory between turns and
     # only sees the last few lines, so without being told it cannot tell a first ask from a third — and it
@@ -152,9 +125,7 @@ def next_step(call: Call, intent: str) -> tuple[str, str | None]:
 
 
 def opening(call: Call) -> str:
-    """The first thing said: the business's own greeting, or one the AI writes in the call's voice."""
-    if call.setup.greeting.strip():
-        return fixed_line(call, call.setup.greeting)
+    """The first thing said. Written by the AI like everything else, so the call opens in its own voice."""
     prompt = prompts.OPENING_JOB.format(
         today=date.today(), name=prompts.OPENING_NAME if call.customer.get("name") else "",
         ai=prompts.OPENING_AI if call.setup.ai_disclosure == "at_start" else "")
@@ -184,12 +155,9 @@ def reply_to(call: Call, message: str) -> dict:
         call.note(f"silence {call.silences}")
         if call.silences >= call.setup.silences_before_ending:
             call.outcome, call.end_reason = "incomplete", "no answer"
-            say = fixed_line(call, call.setup.no_answer_line)
-            call.note(f"no answer {HOW_MANY.get(call.silences, f'{call.silences} times')}: ending "
-                      + ("with the no-answer line" if say else "without a goodbye"))
-            if say:
-                call.add("assistant", say)
-            return {"say": say, "ended": True, "think_ms": 0}
+            call.note(f"no answer {HOW_MANY.get(call.silences, f'{call.silences} times')}: "
+                      "ending without a goodbye")
+            return {"say": "", "ended": True, "think_ms": 0}
         began = time.monotonic()
         turn = think(call, "(they said nothing)", prompts.STEP_TASKS["silence"])
         call.add("assistant", turn.reply)
@@ -226,16 +194,14 @@ def reply_to(call: Call, message: str) -> dict:
         call.end_reason = ("took too long" if out_of_time else "went on too long" if too_many else
                            turn.intent if early or call.setup.confirm_at_end else "all asked")
         call.note(f"finishing: {outcome} ({call.end_reason})")
-        say = fixed_line(call, call.setup.early_goodbye if early else call.setup.goodbye)
-        if not say and not early and not call.setup.confirm_at_end and (
-                final is None or final.save_as not in call.answers):
+        say = turn.reply                                      # the AI says its own goodbye
+        if not early and not call.setup.confirm_at_end and (final is None or final.save_as not in call.answers):
             # The reply was written to ask something, not to end on: the last answer came early, or the
             # last question was given up on. It needs a goodbye of its own.
             began = time.monotonic()
             say = think(call, message, prompts.STEP_TASKS["goodbye"]).reply
             think_ms += int((time.monotonic() - began) * 1000)
             call.note("wrote a goodbye: the reply was not one")
-        say = say or turn.reply                               # the AI says its own goodbye
         call.add("assistant", say)
         return {"say": say, "ended": True, "think_ms": think_ms}
 

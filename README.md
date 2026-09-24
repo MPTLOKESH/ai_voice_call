@@ -22,16 +22,15 @@ above it. Nothing needs installing beyond `requirements.txt` — the server uses
 | | |
 |---|---|
 | Your business | name, assistant's name, why it is calling, who it calls from, when it says it's an AI, language, how long a call may run |
-| Personality | tone, how much it says, formality, empathy, light humour, natural fillers, words to use and to avoid |
-| Voice and speech | the voice (with **Hear it** to try it), speed, accent, other languages it may switch to, how it says numbers, currency, pronunciations |
+| Personality | tone, how much it says, formality |
+| Voice and speech | the voice (with **Hear it** to try it), speed, other languages it may switch to |
 | What it may say | the only facts it shares; asked anything else it says a colleague will follow up |
-| Rules | what it must never do or say. Boundaries go here too, and the common ones (no pricing talk, handing over to a person, angry callers, do-not-call…) are one click away |
-| How the call runs | how often it re-asks an unclear answer, how many silences before it hangs up, how long it waits after you stop talking, question order, the read-back at the end, whether it can be interrupted |
+| Rules | what it must never do or say. Boundaries go here too: topics to avoid, angry callers, handing over to a person |
+| How the call runs | how often it re-asks an unclear answer, how many silences before it hangs up, how long it waits after you stop talking, the read-back at the end, whether it can be interrupted |
 | Questions | what to ask, the answer type, a plain-English rule for an acceptable answer, and *only ask if* an earlier answer was one of a few values |
-| Fixed lines | the greeting, both goodbyes, and what it says when nobody answers. Left empty, the AI writes its own |
 
-Everything left at its default behaves exactly as before. Pronunciations change only what the voice says, not
-the transcript. Whether a conditional question is asked is decided by code, not the AI.
+Everything left at its default behaves exactly as before. Whether a conditional question is asked is decided
+by code, not the AI.
 
 **Suggest questions** asks the AI for questions that suit your purpose. They land in the list as ordinary rows,
 so you can edit, reorder or delete them. They are *added* to what is already there, so asking twice gives you

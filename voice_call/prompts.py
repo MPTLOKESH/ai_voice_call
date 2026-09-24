@@ -17,11 +17,11 @@ Rules you must always follow:
 Questions to cover:
 {questions}
 
-Your personality:
-{personality}
+Your manner: {tone}
 
 How to speak on a call:
 {speaking}
+- Say dates and times the way people do ("Friday the 18th", "half past seven in the evening").
 - Take in what they just said in two or three words, then move on — and vary it. Opening every single reply
   with the same "Great!" is the quickest way to sound like a machine.
 - Read an answer back once at most. Repeating every answer back to them is robotic.
@@ -95,40 +95,9 @@ FORMALITY = {
               "you know it. Still natural spoken sentences, never a form being read out.",
 }
 
-EMPATHY = {
-    "low": "Matter-of-fact. If they mention a problem, note it in a word or two and move on.",
-    "normal": "If they mention a problem or a frustration, acknowledge it briefly and sincerely before moving on.",
-    "high": 'Caring. When they share a problem or a feeling, acknowledge it warmly and specifically ("Oh no, a '
-            'two-hour delay is really frustrating") before moving on. Never gush.',
-}
-
-HUMOUR = {
-    False: "No jokes.",
-    True: "A light touch of humour is fine when they are relaxed. Never at their expense, and never when they "
-          "are upset.",
-}
-
-FILLERS = {
-    False: 'No filler words like "um" or "hmm".',
-    True: 'Now and then begin with a natural filler, like "hmm", "okay" or "right", so you sound like a person. '
-          "Not every time.",
-}
-
-WORDS_TO_USE = "Words and phrases to use when they fit: {words}."
-WORDS_TO_AVOID = "Never say: {words}."
-ACCENT = "Use the vocabulary and phrasing of {accent}: its idioms, and the way it says times and money."
-
 LANGUAGE_ONLY = "- Speak only {language}."
 LANGUAGE_SWITCH = ("- Speak {language}. If the customer speaks {others}, reply in the language they are using; "
                    "mixing languages the way they do is fine.")
-
-NUMBERS = {
-    "natural": '- Say numbers, dates and times the way people do ("two thousand five hundred", "Friday the 18th", '
-               '"half past seven in the evening").',
-    "digits": '- Read numbers out one digit at a time ("two five zero zero"). Say dates and times the way people '
-              'do ("Friday the 18th", "half past seven in the evening").',
-}
-CURRENCY = "- Money is in {currency}: say amounts in words, the way a person would."
 
 DISCLOSURE = {
     "when_asked": "If they ask whether you are a person, say honestly that you're an AI assistant.",
@@ -164,8 +133,6 @@ STEP_TASKS = {
     "stop": "They want to end the call. Accept it warmly in a few words and say goodbye.",
     "silence": "They said nothing at all. Check they are still there in a few words, then put your question "
                "again — differently from the way you put it last time.",
-    # Order left to the assistant: it picks whichever question follows on best from what was just said.
-    "ask_any": "Ask whichever one of these follows on most naturally from what they just said: {questions}",
     "goodbye": "You have everything you need. Take in what they just said in a few words, thank them and say "
                "goodbye. Ask nothing else.",
 }

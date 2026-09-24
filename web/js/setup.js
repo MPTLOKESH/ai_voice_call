@@ -8,10 +8,8 @@ const TYPES = ["text", "number", "date", "time", "yes_no", "choice"];
 
 // Every field on the form, by kind, with what it falls back to when left empty. Each id is the setting's
 // own name, so one list drives filling the form, reading it back and comparing it with what was saved.
-const TEXT = ["business_name", "assistant_name", "purpose", "calling_from", "language", "voice_id", "accent",
-              "currency", "greeting", "goodbye", "early_goodbye", "no_answer_line"];
-const CHOICES = { ai_disclosure: "when_asked", tone: "friendly", reply_length: "balanced", formality: "neutral",
-                  empathy: "normal", number_style: "natural", question_order: "in_order" };
+const TEXT = ["business_name", "assistant_name", "purpose", "calling_from", "language", "voice_id"];
+const CHOICES = { ai_disclosure: "when_asked", tone: "friendly", reply_length: "balanced", formality: "neutral" };
 const NUMBERS = { max_minutes: 4, speaking_speed: 1, tries_per_question: 3, silences_before_ending: 2,
                   wait_after_speech_ms: 450 };
 // The server refuses anything outside these, so a number typed past the end is brought back inside.
@@ -23,20 +21,10 @@ function number(name, value) {
   const given = Number(value) || NUMBERS[name];
   return Math.min(high, Math.max(low, Number((Math.round(given / step) * step).toFixed(2))));
 }
-const SWITCHES = { humour: false, fillers: false, confirm_at_end: true, allow_interruptions: true };
-const LINES = ["business_info", "rules", "words_to_use", "words_to_avoid", "pronunciations"];
-const COMMAS = ["other_languages"];
 
-// Boundaries are ordinary rules. These are the ones most businesses want, one click away.
-const RULE_EXAMPLES = {
-  "No pricing talk": "Don't discuss prices, offers or competitors.",
-  "Handing over": "If they ask for a person, say a colleague will call them back, then end the call politely.",
-  "Angry caller": "If they get angry, apologise once, stay calm, and offer to end the call.",
-  "Call back later": "If they ask to be called back, ask what time suits them, then end the call.",
-  "Do not call": "If they ask not to be called again, apologise, say you'll make a note of it, and end the call.",
-  "No advice": "Never give medical, legal or financial advice.",
-  "Private details": "Never ask for or repeat card numbers, passwords or other private details.",
-};
+const SWITCHES = { confirm_at_end: true, allow_interruptions: true };
+const LINES = ["business_info", "rules"];
+const COMMAS = ["other_languages"];
 
 let questions = [];
 let onSaved = () => {};
@@ -77,7 +65,6 @@ export function start(setup, { onChange }) {
   el("speaking_speed").addEventListener("input", showSpeed);
   el("voice_id").addEventListener("change", showVoice);
   el("hear").addEventListener("click", hear);
-  el("rules").addEventListener("input", drawRuleExamples);
   loadVoices(setup.voice_id);
 }
 
@@ -96,7 +83,6 @@ export function fill(setup) {
   questions = (setup.questions || []).map((question) => ({ ...question }));
   showSpeed();
   showVoice();
-  drawRuleExamples();
   drawQuestions();
 }
 
@@ -263,11 +249,8 @@ async function hear() {
     return;
   }
   const setup = collect();
-  const text = setup.greeting
-    ? setup.greeting.replaceAll("{name}", "there").replaceAll("{assistant}", setup.assistant_name || "your assistant")
-        .replaceAll("{business}", setup.business_name || "us")
-    : `Hi, this is ${setup.assistant_name || "your assistant"} from ${setup.business_name || "us"}. `
-      + "Is now a good time for a quick chat?";
+  const text = `Hi, this is ${setup.assistant_name || "your assistant"} from ${setup.business_name || "us"}. `
+    + "Is now a good time for a quick chat?";
 
   const context = await audioContext();
   const player = new Player(context);
@@ -288,20 +271,6 @@ async function hear() {
     sample = null;
     button.textContent = "Hear it";
   }
-}
-
-// ── rules ──────────────────────────────────────────────────────────────────
-function drawRuleExamples() {
-  const holder = clear(el("rule-examples"));
-  const have = lines(el("rules").value);
-  Object.entries(RULE_EXAMPLES).forEach(([label, rule]) => {
-    const button = make("button", { type: "button", title: rule, disabled: have.includes(rule), text: `+ ${label}` });
-    button.addEventListener("click", () => {
-      el("rules").value = [...lines(el("rules").value), rule].join("\n");
-      drawRuleExamples();
-    });
-    holder.appendChild(button);
-  });
 }
 
 // ── questions ──────────────────────────────────────────────────────────────

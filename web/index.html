@@ -81,7 +81,7 @@
         <header class="card-head">
           <h3>Personality</h3>
         </header>
-        <div class="fields two">
+        <div class="fields three">
           <label>Tone
             <select id="tone">
               <option value="friendly">Friendly</option>
@@ -105,27 +105,6 @@
               <option value="formal">Formal</option>
             </select>
           </label>
-          <label>Empathy
-            <select id="empathy">
-              <option value="low">Matter-of-fact</option>
-              <option value="normal">Normal</option>
-              <option value="high">Very caring</option>
-            </select>
-          </label>
-        </div>
-        <div class="switches">
-          <label class="switch"><input type="checkbox" id="humour"><span>Light humour</span></label>
-          <label class="switch"><input type="checkbox" id="fillers"><span>Natural fillers ("hmm", "okay")</span></label>
-        </div>
-        <div class="fields two">
-          <label>Words to use
-            <textarea id="words_to_use" rows="2" placeholder="journey&#10;happy travels"></textarea>
-            <small>One per line. Brand words and catchphrases.</small>
-          </label>
-          <label>Words to avoid
-            <textarea id="words_to_avoid" rows="2" placeholder="unfortunately&#10;cheap"></textarea>
-            <small>One per line.</small>
-          </label>
         </div>
       </section>
 
@@ -145,27 +124,10 @@
             <input type="range" id="speaking_speed" min="0.7" max="1.2" step="0.05" value="1">
             <small>0.7 is slow and 1.2 is fast.</small>
           </label>
-          <label>Accent or region
-            <input type="text" id="accent" placeholder="Indian English" autocomplete="off">
-            <small>Affects its wording. Pick a voice with that accent too.</small>
-          </label>
-          <label>Other languages it may switch to
-            <input type="text" id="other_languages" placeholder="Hindi, Tamil" autocomplete="off">
-            <small>Separated by commas. It replies in the language the customer uses.</small>
-          </label>
-          <label>Numbers
-            <select id="number_style">
-              <option value="natural">Naturally: "two thousand five hundred"</option>
-              <option value="digits">Digit by digit: "two five zero zero"</option>
-            </select>
-          </label>
-          <label>Currency
-            <input type="text" id="currency" placeholder="rupees" autocomplete="off">
-          </label>
         </div>
-        <label>Pronunciations
-          <textarea id="pronunciations" rows="2" placeholder="KPN = kay pee en&#10;Cucina = koo-chee-na"></textarea>
-          <small>One per line, as "word = how to say it". Only the voice changes, not the transcript.</small>
+        <label>Other languages it may switch to
+          <input type="text" id="other_languages" placeholder="Hindi, Tamil" autocomplete="off">
+          <small>Separated by commas. It replies in the language the customer uses.</small>
         </label>
       </section>
 
@@ -183,7 +145,6 @@
             placeholder="Never offer discounts, refunds or free items.&#10;Never ask for card or payment details."></textarea>
           <small>One per line. Boundaries go here too: topics to avoid, angry callers, handing over to a person.</small>
         </label>
-        <div class="chips" id="rule-examples" aria-label="Add a common rule"></div>
       </section>
 
       <section class="card">
@@ -199,22 +160,16 @@
             <input type="number" id="silences_before_ending" min="1" max="5" step="1" placeholder="2">
             <small>silences in a row</small>
           </label>
-          <label>Waits after they stop talking
-            <select id="wait_after_speech_ms">
-              <option value="350">Quick: 0.35 s</option>
-              <option value="450">Normal: 0.45 s</option>
-              <option value="700">Patient: 0.7 s</option>
-              <option value="1000">Very patient: 1 s</option>
-            </select>
-            <small>Longer suits slow speakers, but every reply comes later.</small>
-          </label>
-          <label>Question order
-            <select id="question_order">
-              <option value="in_order">As listed</option>
-              <option value="flexible">Whatever flows best</option>
-            </select>
-          </label>
         </div>
+        <label>Waits after they stop talking
+          <select id="wait_after_speech_ms">
+            <option value="350">Quick: 0.35 s</option>
+            <option value="450">Normal: 0.45 s</option>
+            <option value="700">Patient: 0.7 s</option>
+            <option value="1000">Very patient: 1 s</option>
+          </select>
+          <small>Longer suits slow speakers, but every reply comes later.</small>
+        </label>
         <div class="switches">
           <label class="switch"><input type="checkbox" id="confirm_at_end"><span>Read the answers back at the end</span></label>
           <label class="switch"><input type="checkbox" id="allow_interruptions"><span>Can be interrupted</span></label>
@@ -234,32 +189,6 @@
           saved, and it asks again.
         </p>
         <div id="questions"></div>
-      </section>
-
-      <section class="card">
-        <header class="card-head">
-          <h3>Fixed lines</h3>
-        </header>
-        <p class="hint">
-          Said word for word. Leave one empty and the assistant writes its own. {name}, {assistant} and
-          {business} are filled in.
-        </p>
-        <label>Greeting
-          <input type="text" id="greeting" placeholder="Hi {name}, this is {assistant} from {business}. Is now a good time?">
-          <small>If it should say it's an AI in the greeting, write that in here too.</small>
-        </label>
-        <label>Goodbye
-          <input type="text" id="goodbye" placeholder="Thanks so much for your time. Have a lovely day!">
-          <small>When everything is asked.</small>
-        </label>
-        <label>Goodbye when they end the call early
-          <input type="text" id="early_goodbye" placeholder="No problem at all. Sorry to have bothered you, bye!">
-          <small>When they're busy or not interested, and when time runs out.</small>
-        </label>
-        <label>When nobody answers
-          <input type="text" id="no_answer_line" placeholder="I can't hear anyone, so I'll try again later. Bye!">
-          <small>Said before hanging up. Empty hangs up without a word.</small>
-        </label>
       </section>
     </div>
 

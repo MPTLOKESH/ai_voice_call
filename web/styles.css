@@ -269,10 +269,6 @@ label.switch.tight { gap: 5px; font-size: 11px; }
 
 input[type="range"] { width: 100%; accent-color: var(--accent); }
 
-.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: -4px; }
-.chips button { padding: 4px 9px; font-size: 11px; border-radius: 99px; background: transparent; }
-.chips button:disabled { opacity: .45; }
-
 .q-when { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
 /* ── buttons ──────────────────────────────────────────────────────────────── */
