@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voice Call</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="mark" aria-hidden="true"></span>
+    <span class="brand-text">
+      <b id="business-name">Voice Call</b>
+      <small id="business-purpose">a voice assistant for your business</small>
+    </span>
+  </div>
+
+  <div class="topbar-end">
+    <span class="pill mono" id="services">—</span>
+    <span class="saved" id="saved-note"></span>
+    <button class="ghost tiny" id="toggle-setup" title="Give the call the full width">Hide setup</button>
+  </div>
+</header>
+
+<main class="split" id="split">
+
+  <!-- ───────────────────────────── left: set up ───────────────────────────── -->
+  <section class="pane" id="pane-setup" aria-label="Set up">
+    <div class="pane-head">
+      <h2>Set up</h2>
+      <span class="pane-sub">what the assistant knows before it dials</span>
+    </div>
+
+    <div class="pane-body">
+      <section class="card">
+        <header class="card-head">
+          <h3>Your business</h3>
+        </header>
+        <div class="fields two">
+          <label>Business name
+            <input type="text" id="business_name" placeholder="The Blue Door" autocomplete="off">
+          </label>
+          <label>Assistant's name
+            <input type="text" id="assistant_name" placeholder="Maya" autocomplete="off">
+          </label>
+        </div>
+        <label>Why it is calling
+          <input type="text" id="purpose" placeholder="Call customers to confirm their table booking.">
+          <small>The suggested questions come from this.</small>
+        </label>
+        <div class="fields two">
+          <label>Calling from
+            <input type="text" id="calling_from" placeholder="the customer care team" autocomplete="off">
+            <small>Optional. Said as "Maya from Bella Cucina, from …"</small>
+          </label>
+          <label>Says it's an AI
+            <select id="ai_disclosure">
+              <option value="when_asked">When asked</option>
+              <option value="at_start">In the greeting, and when asked</option>
+            </select>
+          </label>
+        </div>
+        <div class="fields two">
+          <label>Language
+            <input type="text" id="language" placeholder="English">
+          </label>
+          <label>Wrap up after
+            <input type="number" id="max_minutes" min="1" max="30" step="0.5" placeholder="4">
+            <small>minutes</small>
+          </label>
+        </div>
+      </section>
+
+      <section class="card">
+        <header class="card-head">
+          <h3>Personality</h3>
+        </header>
+        <div class="fields two">
+          <label>Tone
+            <select id="tone">
+              <option value="friendly">Friendly</option>
+              <option value="warm">Warm</option>
+              <option value="professional">Professional</option>
+              <option value="energetic">Energetic</option>
+              <option value="calm">Calm</option>
+            </select>
+          </label>
+          <label>How much it says
+            <select id="reply_length">
+              <option value="brief">Brief: straight to the point</option>
+              <option value="balanced">Balanced</option>
+              <option value="chatty">Chatty: some small talk</option>
+            </select>
+          </label>
+          <label>Formality
+            <select id="formality">
+              <option value="casual">Casual</option>
+              <option value="neutral">Neutral</option>
+              <option value="formal">Formal</option>
+            </select>
+          </label>
+          <label>Empathy
+            <select id="empathy">
+              <option value="low">Matter-of-fact</option>
+              <option value="normal">Normal</option>
+              <option value="high">Very caring</option>
+            </select>
+          </label>
+        </div>
+        <div class="switches">
+          <label class="switch"><input type="checkbox" id="humour"><span>Light humour</span></label>
+          <label class="switch"><input type="checkbox" id="fillers"><span>Natural fillers ("hmm", "okay")</span></label>
+        </div>
+        <div class="fields two">
+          <label>Words to use
+            <textarea id="words_to_use" rows="2" placeholder="journey&#10;happy travels"></textarea>
+            <small>One per line. Brand words and catchphrases.</small>
+          </label>
+          <label>Words to avoid
+            <textarea id="words_to_avoid" rows="2" placeholder="unfortunately&#10;cheap"></textarea>
+            <small>One per line.</small>
+          </label>
+        </div>
+      </section>
+
+      <section class="card">
+        <header class="card-head">
+          <h3>Voice and speech</h3>
+          <div class="card-actions">
+            <button id="hear" class="ghost">Hear it</button>
+          </div>
+        </header>
+        <div class="fields two">
+          <label>Voice
+            <select id="voice_id"><option value="">Default voice</option></select>
+            <small id="voice-about"></small>
+          </label>
+          <label>Speed <span class="mono tiny" id="speed-shown">1.00×</span>
+            <input type="range" id="speaking_speed" min="0.7" max="1.2" step="0.05" value="1">
+            <small>0.7 is slow and 1.2 is fast.</small>
+          </label>
+          <label>Accent or region
+            <input type="text" id="accent" placeholder="Indian English" autocomplete="off">
+            <small>Affects its wording. Pick a voice with that accent too.</small>
+          </label>
+          <label>Other languages it may switch to
+            <input type="text" id="other_languages" placeholder="Hindi, Tamil" autocomplete="off">
+            <small>Separated by commas. It replies in the language the customer uses.</small>
+          </label>
+          <label>Numbers
+            <select id="number_style">
+              <option value="natural">Naturally: "two thousand five hundred"</option>
+              <option value="digits">Digit by digit: "two five zero zero"</option>
+            </select>
+          </label>
+          <label>Currency
+            <input type="text" id="currency" placeholder="rupees" autocomplete="off">
+          </label>
+        </div>
+        <label>Pronunciations
+          <textarea id="pronunciations" rows="2" placeholder="KPN = kay pee en&#10;Cucina = koo-chee-na"></textarea>
+          <small>One per line, as "word = how to say it". Only the voice changes, not the transcript.</small>
+        </label>
+      </section>
+
+      <section class="card">
+        <header class="card-head">
+          <h3>What it may say</h3>
+        </header>
+        <label>Facts it may share
+          <textarea id="business_info" rows="4"
+            placeholder="Open 12:00 to 23:00, Tuesday to Sunday.&#10;Free parking behind the restaurant."></textarea>
+          <small>One per line. Asked anything else, it says a colleague will follow up.</small>
+        </label>
+        <label>Rules it must follow
+          <textarea id="rules" rows="4"
+            placeholder="Never offer discounts, refunds or free items.&#10;Never ask for card or payment details."></textarea>
+          <small>One per line. Boundaries go here too: topics to avoid, angry callers, handing over to a person.</small>
+        </label>
+        <div class="chips" id="rule-examples" aria-label="Add a common rule"></div>
+      </section>
+
+      <section class="card">
+        <header class="card-head">
+          <h3>How the call runs</h3>
+        </header>
+        <div class="fields two">
+          <label>Asks an unclear answer
+            <input type="number" id="tries_per_question" min="1" max="5" step="1" placeholder="3">
+            <small>times before moving on</small>
+          </label>
+          <label>Hangs up after
+            <input type="number" id="silences_before_ending" min="1" max="5" step="1" placeholder="2">
+            <small>silences in a row</small>
+          </label>
+          <label>Waits after they stop talking
+            <select id="wait_after_speech_ms">
+              <option value="350">Quick: 0.35 s</option>
+              <option value="450">Normal: 0.45 s</option>
+              <option value="700">Patient: 0.7 s</option>
+              <option value="1000">Very patient: 1 s</option>
+            </select>
+            <small>Longer suits slow speakers, but every reply comes later.</small>
+          </label>
+          <label>Question order
+            <select id="question_order">
+              <option value="in_order">As listed</option>
+              <option value="flexible">Whatever flows best</option>
+            </select>
+          </label>
+        </div>
+        <div class="switches">
+          <label class="switch"><input type="checkbox" id="confirm_at_end"><span>Read the answers back at the end</span></label>
+          <label class="switch"><input type="checkbox" id="allow_interruptions"><span>Can be interrupted</span></label>
+        </div>
+      </section>
+
+      <section class="card">
+        <header class="card-head">
+          <h3>Questions</h3>
+          <div class="card-actions">
+            <button id="suggest" class="ghost">Suggest <span class="tag ai">AI</span></button>
+            <button id="add-question" class="ghost">Add</button>
+          </div>
+        </header>
+        <p class="hint" id="questions-hint">
+          The rule is plain English and the assistant checks answers against it. An answer that breaks it is not
+          saved, and it asks again.
+        </p>
+        <div id="questions"></div>
+      </section>
+
+      <section class="card">
+        <header class="card-head">
+          <h3>Fixed lines</h3>
+        </header>
+        <p class="hint">
+          Said word for word. Leave one empty and the assistant writes its own. {name}, {assistant} and
+          {business} are filled in.
+        </p>
+        <label>Greeting
+          <input type="text" id="greeting" placeholder="Hi {name}, this is {assistant} from {business}. Is now a good time?">
+          <small>If it should say it's an AI in the greeting, write that in here too.</small>
+        </label>
+        <label>Goodbye
+          <input type="text" id="goodbye" placeholder="Thanks so much for your time. Have a lovely day!">
+          <small>When everything is asked.</small>
+        </label>
+        <label>Goodbye when they end the call early
+          <input type="text" id="early_goodbye" placeholder="No problem at all. Sorry to have bothered you, bye!">
+          <small>When they're busy or not interested, and when time runs out.</small>
+        </label>
+        <label>When nobody answers
+          <input type="text" id="no_answer_line" placeholder="I can't hear anyone, so I'll try again later. Bye!">
+          <small>Said before hanging up. Empty hangs up without a word.</small>
+        </label>
+      </section>
+    </div>
+
+    <footer class="pane-foot">
+      <span id="setup-problems" class="problems"></span>
+      <button class="ghost" id="reset" title="Empty every field and start a new setup">Reset</button>
+      <button class="ghost" id="save">Save</button>
+      <button class="primary" id="save-and-call">Save and call</button>
+    </footer>
+  </section>
+
+  <!-- ────────────────────────────── right: call ───────────────────────────── -->
+  <section class="pane pane-call" id="pane-call" aria-label="Call">
+    <div class="pane-head">
+      <h2>Call</h2>
+      <span class="pane-sub">a live test of everything on the left</span>
+    </div>
+
+    <div class="pane-body">
+
+      <!-- before a call -->
+      <div class="card start-card" id="start-card">
+        <header class="card-head">
+          <h3>Start a test call</h3>
+        </header>
+        <div class="fields">
+          <label>Customer's name, if known
+            <input type="text" id="customer" placeholder="Priya Sharma" autocomplete="off">
+          </label>
+        </div>
+
+        <label class="switch">
+          <input type="checkbox" id="speak" checked>
+          <span>Speak out loud</span>
+        </label>
+
+        <div class="mic-row">
+          <button id="check-mic" class="ghost">Check my microphone</button>
+          <div class="meter" id="mic-meter" hidden>
+            <div class="bar"><span id="mic-level"></span></div>
+            <div class="mono tiny" id="mic-numbers"></div>
+          </div>
+        </div>
+
+        <button class="primary big" id="start">Start the call</button>
+        <p class="problems" id="call-problems"></p>
+      </div>
+
+      <!-- during a call -->
+      <div class="call-grid" id="call-grid" hidden>
+        <section class="card talk">
+          <header class="statusbar">
+            <span class="orb" id="orb" data-state="idle"><i></i></span>
+            <div class="status-text">
+              <b id="status">Ready</b>
+              <div class="bar slim"><span id="call-level"></span></div>
+              <div class="mono tiny" id="call-numbers"></div>
+            </div>
+            <button id="hangup" class="danger">End call</button>
+          </header>
+
+          <div class="timings mono">
+            <span>heard <b id="t-heard">–</b></span>
+            <span>thought <b id="t-think">–</b></span>
+            <span>spoke <b id="t-speak">–</b></span>
+            <span>call <b id="t-total">0.0s</b></span>
+          </div>
+
+          <div class="transcript" id="transcript"></div>
+
+          <footer class="controls" id="controls">
+            <button id="silent" class="ghost">Say nothing</button>
+            <span class="hint">Just talk. Interrupt whenever you like.</span>
+          </footer>
+        </section>
+
+        <div class="call-side">
+          <section class="card">
+            <header class="card-head">
+              <h3>Answers</h3>
+              <span class="pill" id="progress">0 of 0</span>
+            </header>
+            <div id="answers" class="answers"></div>
+            <div id="ending" class="ending" hidden>
+              <div class="outcome" id="outcome"></div>
+              <p class="summary" id="summary"></p>
+              <button class="primary" id="again">New call</button>
+            </div>
+          </section>
+
+          <section class="card">
+            <header class="card-head">
+              <h3>What the code decided</h3>
+              <span class="tag plain">live</span>
+            </header>
+            <div id="events" class="events"></div>
+          </section>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+</main>
+
+<div class="toasts" id="toasts"></div>
+
+<script type="module" src="/static/js/app.js"></script>
+</body>
+</html>

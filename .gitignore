@@ -1,0 +1,9 @@
+# your key
+.env
+
+# your setup and your calls
+config/business.json
+data/
+
+__pycache__/
+*.pyc
