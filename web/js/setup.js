@@ -197,7 +197,7 @@ async function suggest() {
   if (!setup.purpose.trim()) { toast("Say why it is calling first.", "bad"); return; }
   const button = el("suggest");
   button.disabled = true;
-  const wasSaying = button.textContent;
+  const wasSaying = button.innerHTML;        // markup, not text: the AI tag is its own element
   button.textContent = "Thinking…";
   try {
     const { questions: found, notices } = await api.suggestQuestions(setup);
@@ -209,7 +209,7 @@ async function suggest() {
     toast(problem.message, "bad");
   } finally {
     button.disabled = false;
-    button.textContent = wasSaying;
+    button.innerHTML = wasSaying;
   }
 }
 
@@ -218,9 +218,12 @@ function showSpeed() {
   el("speed-shown").textContent = `${Number(el("speaking_speed").value || 1).toFixed(2)}×`;
 }
 
-function addVoiceOption(id, name = `Voice ${id}`) {
-  if ([...el("voice_id").options].some((option) => option.value === id)) return;
-  el("voice_id").appendChild(make("option", { value: id, text: name }));
+function addVoiceOption(id, name) {
+  // The saved voice is added before the list arrives, under a stand-in name. Once the real name is known it
+  // replaces the stand-in, rather than leaving the voice showing as its id.
+  const existing = [...el("voice_id").options].find((option) => option.value === id);
+  if (existing) { if (name) existing.textContent = name; return; }
+  el("voice_id").appendChild(make("option", { value: id, text: name || `Voice ${id}` }));
 }
 
 function showVoice() {
@@ -255,7 +258,7 @@ async function hear() {
   const context = await audioContext();
   const player = new Player(context);
   sample = new AbortController();
-  button.textContent = "Stop";
+  button.querySelector("span").textContent = "Stop";
   try {
     const head = await api.turn({
       url: "/api/hear", headers: { "Content-Type": "application/json" },
@@ -269,7 +272,7 @@ async function hear() {
   } finally {
     player.stop();
     sample = null;
-    button.textContent = "Hear it";
+    button.querySelector("span").textContent = "Hear it";
   }
 }
 

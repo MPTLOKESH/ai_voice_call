@@ -7,14 +7,16 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
 
 <header class="topbar">
   <div class="brand">
-    <span class="mark" aria-hidden="true"></span>
+    <span class="mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24"><path d="M4 10v4M8 6v12M12 3v18M16 7v10M20 10v4"/></svg>
+    </span>
     <span class="brand-text">
       <b id="business-name">Voice Call</b>
       <small id="business-purpose">a voice assistant for your business</small>
@@ -22,8 +24,8 @@
   </div>
 
   <div class="topbar-end">
-    <span class="pill mono" id="services">—</span>
     <span class="saved" id="saved-note"></span>
+    <span class="pill mono model" id="services">—</span>
     <button class="ghost tiny" id="toggle-setup" title="Give the call the full width">Hide setup</button>
   </div>
 </header>
@@ -34,13 +36,18 @@
   <section class="pane" id="pane-setup" aria-label="Set up">
     <div class="pane-head">
       <h2>Set up</h2>
-      <span class="pane-sub">what the assistant knows before it dials</span>
+      <span class="pane-sub">What the assistant knows before it dials</span>
     </div>
 
     <div class="pane-body">
       <section class="card">
         <header class="card-head">
-          <h3>Your business</h3>
+          <div class="card-title">
+            <span class="card-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M4 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16M16 9h2a2 2 0 0 1 2 2v10M3 21h18M8 7h4M8 11h4M8 15h4"/></svg>
+            </span>
+            <div><h3>Your business</h3><p class="card-sub">Who is calling, and why</p></div>
+          </div>
         </header>
         <div class="fields two">
           <label>Business name
@@ -71,15 +78,22 @@
             <input type="text" id="language" placeholder="English">
           </label>
           <label>Wrap up after
-            <input type="number" id="max_minutes" min="1" max="30" step="0.5" placeholder="4">
-            <small>minutes</small>
+            <span class="with-unit">
+              <input type="number" id="max_minutes" min="1" max="30" step="0.5" placeholder="4">
+              <span class="unit">min</span>
+            </span>
           </label>
         </div>
       </section>
 
       <section class="card">
         <header class="card-head">
-          <h3>Personality</h3>
+          <div class="card-title">
+            <span class="card-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M12 3l1.8 4.7 4.7 1.8-4.7 1.8L12 16l-1.8-4.7-4.7-1.8 4.7-1.8zM19 15l.8 2.2 2.2.8-2.2.8L19 21l-.8-2.2-2.2-.8 2.2-.8z"/></svg>
+            </span>
+            <div><h3>Personality</h3><p class="card-sub">How it comes across on the phone</p></div>
+          </div>
         </header>
         <div class="fields three">
           <label>Tone
@@ -93,9 +107,9 @@
           </label>
           <label>How much it says
             <select id="reply_length">
-              <option value="brief">Brief: straight to the point</option>
+              <option value="brief">Brief</option>
               <option value="balanced">Balanced</option>
-              <option value="chatty">Chatty: some small talk</option>
+              <option value="chatty">Chatty</option>
             </select>
           </label>
           <label>Formality
@@ -110,9 +124,17 @@
 
       <section class="card">
         <header class="card-head">
-          <h3>Voice and speech</h3>
+          <div class="card-title">
+            <span class="card-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M3 10v4M7 6v12M11 3v18M15 8v8M19 5v14"/></svg>
+            </span>
+            <div><h3>Voice and speech</h3><p class="card-sub">What it sounds like</p></div>
+          </div>
           <div class="card-actions">
-            <button id="hear" class="ghost">Hear it</button>
+            <button id="hear" class="ghost">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16l13-8z"/></svg>
+              <span>Hear it</span>
+            </button>
           </div>
         </header>
         <div class="fields two">
@@ -120,9 +142,9 @@
             <select id="voice_id"><option value="">Default voice</option></select>
             <small id="voice-about"></small>
           </label>
-          <label>Speed <span class="mono tiny" id="speed-shown">1.00×</span>
+          <label><span class="label-row">Speed <span class="mono value" id="speed-shown">1.00×</span></span>
             <input type="range" id="speaking_speed" min="0.7" max="1.2" step="0.05" value="1">
-            <small>0.7 is slow and 1.2 is fast.</small>
+            <span class="range-ends"><small>Slower</small><small>Faster</small></span>
           </label>
         </div>
         <label>Other languages it may switch to
@@ -133,15 +155,20 @@
 
       <section class="card">
         <header class="card-head">
-          <h3>What it may say</h3>
+          <div class="card-title">
+            <span class="card-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM9 12l2 2 4-4"/></svg>
+            </span>
+            <div><h3>What it may say</h3><p class="card-sub">Facts it can share, and rules it never breaks</p></div>
+          </div>
         </header>
         <label>Facts it may share
-          <textarea id="business_info" rows="4"
+          <textarea id="business_info" rows="3"
             placeholder="Open 12:00 to 23:00, Tuesday to Sunday.&#10;Free parking behind the restaurant."></textarea>
           <small>One per line. Asked anything else, it says a colleague will follow up.</small>
         </label>
         <label>Rules it must follow
-          <textarea id="rules" rows="4"
+          <textarea id="rules" rows="3"
             placeholder="Never offer discounts, refunds or free items.&#10;Never ask for card or payment details."></textarea>
           <small>One per line. Boundaries go here too: topics to avoid, angry callers, handing over to a person.</small>
         </label>
@@ -149,39 +176,58 @@
 
       <section class="card">
         <header class="card-head">
-          <h3>How the call runs</h3>
+          <div class="card-title">
+            <span class="card-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>
+            </span>
+            <div><h3>How the call runs</h3><p class="card-sub">Patience, retries and the ending</p></div>
+          </div>
         </header>
-        <div class="fields two">
-          <label>Asks an unclear answer
-            <input type="number" id="tries_per_question" min="1" max="5" step="1" placeholder="3">
-            <small>times before moving on</small>
+        <div class="fields three">
+          <label>Re-asks an unclear answer
+            <span class="with-unit">
+              <input type="number" id="tries_per_question" min="1" max="5" step="1" placeholder="3">
+              <span class="unit">times</span>
+            </span>
           </label>
           <label>Hangs up after
-            <input type="number" id="silences_before_ending" min="1" max="5" step="1" placeholder="2">
-            <small>silences in a row</small>
+            <span class="with-unit">
+              <input type="number" id="silences_before_ending" min="1" max="5" step="1" placeholder="2">
+              <span class="unit">silences</span>
+            </span>
+          </label>
+          <label>Waits after they stop
+            <select id="wait_after_speech_ms">
+              <option value="350">Quick · 0.35 s</option>
+              <option value="450">Normal · 0.45 s</option>
+              <option value="700">Patient · 0.7 s</option>
+              <option value="1000">Very patient · 1 s</option>
+            </select>
           </label>
         </div>
-        <label>Waits after they stop talking
-          <select id="wait_after_speech_ms">
-            <option value="350">Quick: 0.35 s</option>
-            <option value="450">Normal: 0.45 s</option>
-            <option value="700">Patient: 0.7 s</option>
-            <option value="1000">Very patient: 1 s</option>
-          </select>
-          <small>Longer suits slow speakers, but every reply comes later.</small>
-        </label>
-        <div class="switches">
-          <label class="switch"><input type="checkbox" id="confirm_at_end"><span>Read the answers back at the end</span></label>
-          <label class="switch"><input type="checkbox" id="allow_interruptions"><span>Can be interrupted</span></label>
+        <div class="toggles">
+          <label class="switch">
+            <input type="checkbox" id="confirm_at_end">
+            <span><b>Read the answers back</b><small>Confirms everything at the end of the call</small></span>
+          </label>
+          <label class="switch">
+            <input type="checkbox" id="allow_interruptions">
+            <span><b>Can be interrupted</b><small>The customer can talk over it and it stops</small></span>
+          </label>
         </div>
       </section>
 
       <section class="card">
         <header class="card-head">
-          <h3>Questions</h3>
+          <div class="card-title">
+            <span class="card-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12zM10 9.5a2 2 0 1 1 3 1.7c-.6.4-1 .8-1 1.5M12 15.5v.01"/></svg>
+            </span>
+            <div><h3>Questions</h3><p class="card-sub">What it asks, and what counts as an answer</p></div>
+          </div>
           <div class="card-actions">
             <button id="suggest" class="ghost">Suggest <span class="tag ai">AI</span></button>
-            <button id="add-question" class="ghost">Add</button>
+            <button id="add-question" class="ghost">+ Add</button>
           </div>
         </header>
         <p class="hint" id="questions-hint">
@@ -204,36 +250,43 @@
   <section class="pane pane-call" id="pane-call" aria-label="Call">
     <div class="pane-head">
       <h2>Call</h2>
-      <span class="pane-sub">a live test of everything on the left</span>
+      <span class="pane-sub">A live test of everything on the left</span>
     </div>
 
     <div class="pane-body">
 
       <!-- before a call -->
       <div class="card start-card" id="start-card">
-        <header class="card-head">
-          <h3>Start a test call</h3>
-        </header>
-        <div class="fields">
-          <label>Customer's name, if known
-            <input type="text" id="customer" placeholder="Priya Sharma" autocomplete="off">
-          </label>
+        <div class="hero">
+          <span class="orb hero-orb" data-state="idle" aria-hidden="true"><i></i></span>
+          <h3>Test your assistant</h3>
+          <p>Talk to it the way a customer would. It listens, answers and saves what you say.</p>
         </div>
+
+        <label>Customer's name, if known
+          <input type="text" id="customer" placeholder="Priya Sharma" autocomplete="off">
+        </label>
 
         <label class="switch">
           <input type="checkbox" id="speak" checked>
-          <span>Speak out loud</span>
+          <span><b>Speak out loud</b><small>Turn off to test the logic without using speech credits</small></span>
         </label>
 
         <div class="mic-row">
-          <button id="check-mic" class="ghost">Check my microphone</button>
+          <button id="check-mic" class="ghost">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+            <span>Check my microphone</span>
+          </button>
           <div class="meter" id="mic-meter" hidden>
             <div class="bar"><span id="mic-level"></span></div>
             <div class="mono tiny" id="mic-numbers"></div>
           </div>
         </div>
 
-        <button class="primary big" id="start">Start the call</button>
+        <button class="primary big" id="start">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg>
+          <span>Start the call</span>
+        </button>
         <p class="problems" id="call-problems"></p>
       </div>
 
@@ -247,7 +300,10 @@
               <div class="bar slim"><span id="call-level"></span></div>
               <div class="mono tiny" id="call-numbers"></div>
             </div>
-            <button id="hangup" class="danger">End call</button>
+            <button id="hangup" class="danger">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 15.5c5-4.7 13-4.7 18 0l-2.5 2.5-3.5-1.5V14a11 11 0 0 0-6 0v2.5L5.5 18z"/></svg>
+              <span>End call</span>
+            </button>
           </header>
 
           <div class="timings mono">
@@ -260,15 +316,20 @@
           <div class="transcript" id="transcript"></div>
 
           <footer class="controls" id="controls">
-            <button id="silent" class="ghost">Say nothing</button>
-            <span class="hint">Just talk. Interrupt whenever you like.</span>
+            <span class="hint" id="talk-hint">Just talk. Interrupt whenever you like.</span>
+            <button id="silent" class="ghost tiny">Say nothing</button>
           </footer>
         </section>
 
         <div class="call-side">
           <section class="card">
             <header class="card-head">
-              <h3>Answers</h3>
+              <div class="card-title">
+                <span class="card-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M9 11l3 3 8-8M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg>
+                </span>
+                <h3>Answers</h3>
+              </div>
               <span class="pill" id="progress">0 of 0</span>
             </header>
             <div id="answers" class="answers"></div>
@@ -281,8 +342,13 @@
 
           <section class="card">
             <header class="card-head">
-              <h3>What the code decided</h3>
-              <span class="tag plain">live</span>
+              <div class="card-title">
+                <span class="card-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                </span>
+                <h3>What the code decided</h3>
+              </div>
+              <span class="tag live">live</span>
             </header>
             <div id="events" class="events"></div>
           </section>
