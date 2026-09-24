@@ -4,6 +4,7 @@ Everything else in the project calls `speak` and `transcribe` and doesn't touch 
 """
 from __future__ import annotations
 
+import re
 from typing import Callable, Iterator
 
 from . import elevenlabs, settings, speech
@@ -44,7 +45,16 @@ def transcribe(wav_bytes: bytes, language: str, expecting: str = "") -> str:
     """A finished recording in, the words out. `expecting` is unused: Scribe takes no context."""
     if not ready():
         raise RuntimeError(NO_KEY)
-    return elevenlabs.transcribe(wav_bytes, language)
+    return re.sub(r"\s+", " ", _SOUNDS.sub(" ", elevenlabs.transcribe(wav_bytes, language))).strip()
+
+
+# A sound written in as a tag: "(traffic noise)", "[music]". Asked not to, Scribe can still do it.
+_SOUNDS = re.compile(r"\([^)]*\)|\[[^\]]*\]")
+
+
+def has_words(text: str) -> bool:
+    """Whether anything was said: a recording that was only noise comes back empty, or as punctuation."""
+    return any(character.isalnum() for character in text)
 
 
 def speak(text: str, setup: BusinessSetup,

@@ -254,6 +254,14 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 heard = typed
 
+            # The voice detector fires on a loud room as well as on a voice. A recording with no words in it
+            # was the room: it is not an answer, and not a silence either, so the call carries on as if it
+            # never happened — and whatever the assistant is still saying is left to finish.
+            if audio and not voices.has_words(heard):
+                call.note("only noise heard: ignored")
+                return self.stream_reply(call, heard="", say="", ended=False, think_ms=0, heard_ms=heard_ms,
+                                         with_audio=False, ignored=True)
+
             result = engine.reply_to(call, heard)
             if result["ended"]:
                 storage.save_call(call)        # written before the goodbye, so "all confirmed" is true
@@ -263,11 +271,12 @@ class Handler(BaseHTTPRequestHandler):
             finish(call)                       # the summary is another AI request: do it after they hang up
 
     def stream_reply(self, call: Call, *, heard: str, say: str, ended: bool, think_ms: int,
-                     heard_ms: int = 0, with_audio: bool):
+                     heard_ms: int = 0, with_audio: bool, ignored: bool = False):
         """The reply text first, then its speech as it is made."""
         self.start_stream()
         self.write_chunk(json.dumps({
             "heard": heard, "say": say, "ended": ended, "think_ms": think_ms, "heard_ms": heard_ms,
+            "ignored": ignored,
             "speech_model": settings.ELEVEN_SPEAK_MODEL,
             "listen_model": settings.ELEVEN_HEAR_MODEL,
             "state": call.snapshot(), "notices": take_notices(),

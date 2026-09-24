@@ -40,6 +40,13 @@ SILENCES_BEFORE_ENDING = 2      # silent turns before the call is given up
 RECENT_TURNS = 6                # how much conversation is sent to the model
 MAX_REPLIES = 20                # a safety net, in case a call never reaches an end
 
+# Keeping to a business's time limit. Near the end the assistant hurries: optional questions and the
+# read-back are dropped so what matters still fits. With less than one exchange left, it says goodbye
+# instead of asking anything more, so the call ends on time rather than just after it.
+HURRY_SHARE = 1 / 3             # hurry for the last third of the limit...
+HURRY_SECONDS = 30              # ...or the last 30 seconds, whichever is longer
+SECONDS_PER_EXCHANGE = 10       # roughly one question, its answer and the reply
+
 # Audio.
 MIC_RATE = 16_000               # what the browser sends us
 SPEAKER_RATE = 24_000           # what ElevenLabs speaks at, and what the browser plays

@@ -102,6 +102,7 @@ class Call:
     transcript: list = field(default_factory=list)
     events: list = field(default_factory=list)   # what the manager decided, for the live view
     silences: int = 0
+    hurry: bool = False                          # near the time limit: nothing optional, no read-back
     outcome: str | None = None
     end_reason: str | None = None
     summary: dict | None = None
@@ -159,6 +160,9 @@ class Call:
 
     def seconds(self) -> float:
         return time.monotonic() - self.started
+
+    def seconds_left(self) -> float:
+        return self.setup.max_minutes * 60 - self.seconds()
 
     def snapshot(self) -> dict:
         """Everything the browser needs to draw the live view."""

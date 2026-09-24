@@ -41,16 +41,40 @@ def background(call: Call) -> str:
         rules="\n".join(f"- {r}" for r in setup.rules) or "- (none)",
         questions="\n".join(describe(q) for q in setup.questions),
         tone=prompts.TONES[setup.tone], speaking=speaking(setup),
-        disclosure=prompts.DISCLOSURE[setup.ai_disclosure])
+        disclosure=prompts.DISCLOSURE[setup.ai_disclosure],
+        limit=f"{setup.max_minutes:g} minute{'' if setup.max_minutes == 1 else 's'}")
 
 
 HOW_MANY = {1: "once", 2: "twice"}
 
 
+def hurry(call: Call):
+    """Near the time limit, drop what can be dropped so the call still ends on time."""
+    soon = max(settings.HURRY_SECONDS, call.setup.max_minutes * 60 * settings.HURRY_SHARE)
+    if call.hurry or call.seconds_left() > soon:
+        return
+    call.hurry = True
+    dropped = [q.save_as for q in call.still_to_come() if not q.required]
+    call.skipped.update(dropped)
+    call.note(f"{call.seconds_left():.0f}s left: hurrying"
+              + (f", dropping {', '.join(dropped)}" if dropped else "")
+              + (", no read-back" if call.setup.confirm_at_end and call.step != "confirm" else ""))
+
+
+def out_of_time(call: Call) -> bool:
+    """Less than one more exchange fits: the next thing said has to be goodbye."""
+    return call.seconds_left() < settings.SECONDS_PER_EXCHANGE
+
+
+def reads_back(call: Call) -> bool:
+    """Whether the call ends on a read-back. Once hurrying there is no time for one, unless it has begun."""
+    return call.setup.confirm_at_end and (call.step == "confirm" or not call.hurry)
+
+
 def final_question(call: Call) -> Question | None:
     """The question the call ends on, when there is no read-back to end on instead."""
     left = call.still_to_come()
-    return left[0] if not call.setup.confirm_at_end and len(left) == 1 and call.step != "confirm" else None
+    return left[0] if not reads_back(call) and len(left) == 1 and call.step != "confirm" else None
 
 
 def task_now(call: Call) -> str:
@@ -76,6 +100,7 @@ def think(call: Call, message: str, task: str) -> Turn:
     prompt = prompts.TURN_JOB.format(
         today=date.today(), answers=call.answers_text(),
         missing=", ".join(q.save_as for q in call.unanswered()) or "nothing",
+        clock=prompts.HURRY.format(left=max(0, round(call.seconds_left()))) if call.hurry else "",
         recent=call.recent(), message=message, task=task)
     return ask_ai(Turn, prompt, system=background(call), temperature=0.4,
                   thinking=settings.THINKING_ON_A_TURN)
@@ -121,7 +146,7 @@ def next_step(call: Call, intent: str) -> tuple[str, str | None]:
         return "finish", done
     if call.unanswered():
         return "ask", None
-    return ("confirm", None) if call.setup.confirm_at_end else ("finish", done)
+    return ("confirm", None) if reads_back(call) else ("finish", done)
 
 
 def opening(call: Call) -> str:
@@ -150,9 +175,21 @@ def reply_to(call: Call, message: str) -> dict:
     if call.outcome:
         return {"say": "", "ended": True, "think_ms": 0}
 
-    if not message.strip():                                   # nobody spoke
+    silent = not message.strip()
+    if silent:
         call.silences += 1
         call.note(f"silence {call.silences}")
+    else:
+        call.silences = 0
+        call.add("customer", message)
+
+    hurry(call)
+    if out_of_time(call):
+        return wrap_up(call, message, "took too long")
+    if len(call.transcript) >= settings.MAX_REPLIES * 2:
+        return wrap_up(call, message, "went on too long")
+
+    if silent:                                                # nobody spoke
         if call.silences >= call.setup.silences_before_ending:
             call.outcome, call.end_reason = "incomplete", "no answer"
             call.note(f"no answer {HOW_MANY.get(call.silences, f'{call.silences} times')}: "
@@ -163,14 +200,10 @@ def reply_to(call: Call, message: str) -> dict:
         call.add("assistant", turn.reply)
         return {"say": turn.reply, "ended": False, "think_ms": int((time.monotonic() - began) * 1000)}
 
-    call.silences = 0
-    call.add("customer", message)
-
-    out_of_time = call.seconds() > call.setup.max_minutes * 60
-    too_many = len(call.transcript) >= settings.MAX_REPLIES * 2
     began = time.monotonic()
     final = final_question(call)                              # asked with "say goodbye once it's answered"
-    turn = think(call, message, prompts.STEP_TASKS["stop"] if out_of_time or too_many else task_now(call))
+    read_back = reads_back(call)
+    turn = think(call, message, task_now(call))
     think_ms = int((time.monotonic() - began) * 1000)
 
     keep_answers(call, turn)
@@ -181,8 +214,6 @@ def reply_to(call: Call, message: str) -> dict:
     if intent == "wants_to_stop" and len(message.split()) < 3:
         call.note(f"ignoring 'wants to stop' from {message!r}: too short to be sure")
         intent = "answering"
-    if out_of_time or too_many:
-        intent = "wants_to_stop"
     step, outcome = next_step(call, intent)
     if step != call.step:
         call.note(f"step: {call.step} -> {step}")
@@ -191,11 +222,10 @@ def reply_to(call: Call, message: str) -> dict:
     if outcome:
         call.outcome = outcome
         early = intent == "wants_to_stop"
-        call.end_reason = ("took too long" if out_of_time else "went on too long" if too_many else
-                           turn.intent if early or call.setup.confirm_at_end else "all asked")
+        call.end_reason = turn.intent if early or read_back else "all asked"
         call.note(f"finishing: {outcome} ({call.end_reason})")
         say = turn.reply                                      # the AI says its own goodbye
-        if not early and not call.setup.confirm_at_end and (final is None or final.save_as not in call.answers):
+        if not early and not read_back and (final is None or final.save_as not in call.answers):
             # The reply was written to ask something, not to end on: the last answer came early, or the
             # last question was given up on. It needs a goodbye of its own.
             began = time.monotonic()
@@ -207,6 +237,21 @@ def reply_to(call: Call, message: str) -> dict:
 
     call.add("assistant", turn.reply)
     return {"say": turn.reply, "ended": False, "think_ms": think_ms}
+
+
+def wrap_up(call: Call, message: str, reason: str) -> dict:
+    """Out of time: this reply is the goodbye, whatever was still to be asked."""
+    began = time.monotonic()
+    turn = think(call, message or "(they said nothing)", prompts.STEP_TASKS["time_up"])
+    if message.strip():
+        keep_answers(call, turn)                              # their last answer still counts
+    call.outcome = "incomplete" if call.missing_required() else "completed"
+    call.end_reason = reason
+    call.note(f"step: {call.step} -> finish")
+    call.step = "finish"
+    call.note(f"finishing: {call.outcome} ({reason})")
+    call.add("assistant", turn.reply)
+    return {"say": turn.reply, "ended": True, "think_ms": int((time.monotonic() - began) * 1000)}
 
 
 def summarise(call: Call) -> Summary:

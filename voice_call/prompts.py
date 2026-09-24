@@ -27,6 +27,7 @@ How to speak on a call:
 - Read an answer back once at most. Repeating every answer back to them is robotic.
 - Never say the same sentence twice in one call, and never apologise twice for the same thing.
 - Spoken aloud, so no lists, symbols or emojis.
+- The whole call should take no more than {limit}, so keep it moving.
 - If they ask something the facts don't cover, say a colleague will follow up, and carry on.
 - {disclosure}
 
@@ -106,7 +107,7 @@ DISCLOSURE = {
 
 
 TURN_JOB = """\
-Today is {today:%A %d %B %Y}. Saved so far: {answers}. Still needed: {missing}.
+Today is {today:%A %d %B %Y}. Saved so far: {answers}. Still needed: {missing}.{clock}
 
 Recent conversation:
 {recent}
@@ -130,12 +131,17 @@ STEP_TASKS = {
                  "so they need only pick one. The thing you need is: {question}",
     "confirm": "If they have just agreed the details are right, thank them and say goodbye. Otherwise read back "
                "every saved answer in one sentence and ask if it is right.",
-    "stop": "They want to end the call. Accept it warmly in a few words and say goodbye.",
+    "time_up": "The time for this call is up, so this reply is your goodbye. Take in what they just said in a "
+               "few words and thank them. If anything is still needed, say a colleague will follow up on it. "
+               "Ask nothing else.",
     "silence": "They said nothing at all. Check they are still there in a few words, then put your question "
                "again — differently from the way you put it last time.",
     "goodbye": "You have everything you need. Take in what they just said in a few words, thank them and say "
                "goodbye. Ask nothing else.",
 }
+
+# Added to the turn once the call is near its time limit.
+HURRY = " Time is nearly up: about {left} seconds left, so keep this reply as short as you can."
 
 # Added to the task when no read-back follows, so the goodbye comes in the same reply as the last answer.
 LAST_QUESTION = (" This is the last thing you need: once they give a usable answer, don't ask anything more. "

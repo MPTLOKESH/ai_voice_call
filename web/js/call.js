@@ -11,9 +11,12 @@ let speakOutLoud = true;
 let player = null;
 let mic = null;
 let inFlight = null;              // the turn being streamed, so it can be called off
+let replying = Promise.resolve(); // settles once that turn's reply has fully arrived
+let turns = 0;                    // counts turns, so one that has been overtaken knows to step aside
 let callBegan = 0;                // when this call started, so a note can be placed against the clock
 let serverEvents = [];            // what the server decided
 let notes = [];                   // what the browser saw: the two are drawn together
+let deadline = null;              // ends a call that goes quiet past its time limit
 
 const NO_MIC = "No microphone available. A call is spoken, so check this page is allowed to use yours.";
 
@@ -42,7 +45,7 @@ async function checkMic() {
   try {
     await openMic();
     el("mic-meter").hidden = false;
-    el("check-mic").textContent = "Say something and watch the bar";
+    el("check-mic").querySelector("span").textContent = "Say something and watch the bar";
   } catch {
     problem(NO_MIC);
   }
@@ -63,7 +66,14 @@ async function openMic() {
     toast(`Voice detection unavailable (${problem.message}); falling back to loudness.`, "bad");
     mic = await Mic.open(() => player.playing);
   }
-  mic.onLevel = (level, startsAt, doing) => { micMeter(level, startsAt, doing); callMeter(level, startsAt, doing); };
+  mic.onLevel = (level, startsAt, doing) => {
+    micMeter(level, startsAt, doing);
+    callMeter(level, startsAt, doing);
+    // The orb swells with the caller's voice, and only theirs: while the assistant talks it stays still.
+    const orb = el("orb");
+    const yours = orb.dataset.state === "listening" || orb.dataset.state === "hearing";
+    orb.style.setProperty("--level", yours ? Math.min(1, level / (startsAt * 2.5)).toFixed(3) : "0");
+  };
   mic.onSpeech = () => status("hearing", "Hearing you");
   mic.onInterrupt = () => {
     // Stopping the player only clears what is already scheduled. The request is still open and its
@@ -77,7 +87,10 @@ async function openMic() {
   mic.onTurn = (wav, spoken) => {
     if (!callId) return;                           // the call is over: whatever was said is not ours to send
     note(`recorded ${spoken.toFixed(1)}s`);
-    run((signal) => api.sendAudio(callId, wav, speakOutLoud, hooks(), signal));
+    // Not talking over the assistant (that is `onInterrupt`, which has already called the reply off), so
+    // this may well be the room rather than the customer. Let the reply still arriving finish rather than
+    // cut it off: if this turn was only noise, the customer should still hear the whole question.
+    run((signal) => api.sendAudio(callId, wav, speakOutLoud, hooks(), signal), { afterReply: true });
   };
   return mic;
 }
@@ -96,6 +109,8 @@ async function begin() {
   try { await openMic(); } catch { return problem(NO_MIC); }
   mic.waitMs = Number(setup.wait_after_speech_ms) || 450;
   if (!interruptible()) note("interruptions are off: listening once the assistant has finished");
+  el("talk-hint").textContent = interruptible() ? "Just talk. Interrupt whenever you like."
+                                                : "Just talk. Wait for it to finish before you answer.";
 
   el("start-card").hidden = true;
   el("call-grid").hidden = false;
@@ -120,12 +135,27 @@ function hooks() {
       // finished, which was after `listenAgain` had already run and found no call — so the microphone was
       // never armed after the greeting and the call could never go anywhere.
       if (head.state?.id) callId = head.state.id;
+      if (head.ignored) {
+        // Only noise: nothing was said and nothing changed, so whatever the assistant is saying goes on.
+        note("only noise heard: ignored");
+        drawAnswers(head.state);
+        if (player?.playing) status("speaking", "Speaking");
+        return;
+      }
+      if (head.say && player?.playing) {
+        // The call has moved on, so the last reply is out of date. Left playing, it was heard in full with
+        // the new one queued behind it, and the chat showed the next question while the voice was still
+        // asking the one before.
+        player.stop();
+        note("stopped the last reply: they had already answered");
+      }
       if (head.heard) line("customer", head.heard);
       if (head.say) line("assistant", head.say);
       el("t-heard").textContent = head.heard_ms ? `${head.heard_ms} ms` : "–";
       el("t-think").textContent = head.think_ms ? `${head.think_ms} ms` : "–";
       if (head.speech_model) el("services").textContent = `${head.listen_model} · ${head.speech_model}`;
       drawAnswers(head.state);
+      watchTheClock(head.state);
       (head.notices || []).forEach((notice) => { note(notice); toast(notice); });
       if (mic) mic.quickPause = head.state.step === "confirm";
 
@@ -148,17 +178,25 @@ function hooks() {
   };
 }
 
-async function run(request) {
-  // Whatever was still streaming belongs to a turn that has been overtaken. Two turns at once used to
-  // reach the server together, where they ran on the same call side by side.
-  inFlight?.abort();
-  const mine = new AbortController();
-  inFlight = mine;
+async function run(request, { afterReply = false } = {}) {
+  const turn = ++turns;
 
   // Off only while we think: `onReply` arms it again the moment the reply text arrives, so the speech
   // that follows can be talked over.
   if (mic) mic.enabled = false;
   status("thinking", "Thinking");
+
+  // Whatever was still streaming belongs to a turn that has been overtaken. Two turns at once used to
+  // reach the server together, where they ran on the same call side by side. Either call it off, or wait
+  // for it to finish arriving.
+  if (afterReply) await replying;
+  else inFlight?.abort();
+  if (turn !== turns) return null;              // overtaken while waiting: the newer turn is in charge
+
+  const mine = new AbortController();
+  inFlight = mine;
+  let arrived;
+  replying = new Promise((resolve) => (arrived = resolve));
   let head = null;
   try {
     head = await request(mine.signal);
@@ -170,10 +208,11 @@ async function run(request) {
     status("idle", "Stopped");
     // A failed request must not leave the microphone disarmed. Nothing else re-arms it, so the call would
     // sit there with the customer talking into a mic that is switched off.
-    if (callId) listenAgain();
+    if (callId && turn === turns) listenAgain();
     return null;
   } finally {
     if (inFlight === mine) inFlight = null;
+    arrived();
   }
 
   if (head && speakOutLoud && head.say && !head.audioBytes) {
@@ -181,7 +220,7 @@ async function run(request) {
     note("no audio came back");
   }
   if (head?.ended) ended(head.state);
-  else listenAgain();
+  else if (turn === turns) listenAgain();       // a newer turn is on its way: it arms the mic itself
   return head;
 }
 
@@ -191,6 +230,7 @@ const interruptible = () => setup?.allow_interruptions !== false;
 
 function listenAgain() {
   if (!callId) return;
+  const turn = turns;
   if (mic && interruptible()) mic.enabled = true;  // armed at once, so you can talk over the reply
 
   const arrived = performance.now();
@@ -198,13 +238,33 @@ function listenAgain() {
   if (toPlay > 0.05) note(`reply in hand · ${toPlay.toFixed(1)}s of speech still to play`);
 
   const check = () => {
-    if (!callId) return;
+    if (!callId || turn !== turns) return;       // a newer turn has taken over the microphone
     if ((player?.secondsLeft() ?? 0) > TURN_EARLY) return setTimeout(check, 25);
     if (mic) mic.enabled = true;
     note(`your turn · ${Math.round(performance.now() - arrived)} ms after the reply arrived`);
     status("listening", "Listening");
   };
   check();
+}
+
+/** The server only looks at the clock when a turn arrives, so a line that falls quiet past the time limit
+ *  would stay open for ever. Once the time is up, a silent turn is sent and the server says goodbye. */
+function watchTheClock(state) {
+  clearTimeout(deadline);
+  if (state.outcome) return;
+  const left = (Number(setup.max_minutes) || 4) * 60 - state.seconds;
+  deadline = setTimeout(timeUp, Math.max(0, left) * 1000 + 500);
+}
+
+function timeUp() {
+  if (!callId) return;
+  // Never over the top of either side: wait for the assistant to finish and the customer to stop talking.
+  if (inFlight || player?.playing || el("orb").dataset.state === "hearing") {
+    deadline = setTimeout(timeUp, 500);
+    return;
+  }
+  note("time is up: ending the call");
+  say("");
 }
 
 function say(message) {
@@ -216,13 +276,14 @@ function say(message) {
 function ended(state) {
   callId = null;
   inFlight = null;
+  clearTimeout(deadline);
   // Release the microphone itself, not just the recording flag: the browser keeps the stream live
   // otherwise, so the level meter carries on moving and the tab shows as still listening.
   mic?.close();
   mic = null;
   micMeter(0, 0, "off");
   callMeter(0, 0, "off");
-  el("check-mic").textContent = "Check my microphone";
+  el("check-mic").querySelector("span").textContent = "Check my microphone";
   el("mic-meter").hidden = true;
   clock.stop();
   status("idle", "Call ended");
@@ -312,6 +373,7 @@ function drawAnswers(state) {
 
 function status(kind, text) {
   el("orb").dataset.state = kind;
+  if (kind !== "listening" && kind !== "hearing") el("orb").style.setProperty("--level", "0");
   el("status").textContent = text;
 }
 

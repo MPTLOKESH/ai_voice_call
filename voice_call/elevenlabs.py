@@ -159,6 +159,9 @@ def transcribe(wav_bytes: bytes, language: str = "") -> str:
                      .encode("utf-8"))
 
     field("model_id", settings.ELEVEN_HEAR_MODEL)
+    # Scribe writes sounds into the text by default — "(background noise)", "(music)" — and the AI then
+    # reads a noisy room as something the customer said. Words only.
+    field("tag_audio_events", "false")
     if code:
         field("language_code", code)
     parts.append(f"--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"turn.wav\"\r\n"

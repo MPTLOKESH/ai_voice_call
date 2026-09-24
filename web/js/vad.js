@@ -33,6 +33,13 @@ const TUNING = {
 // answer must. Applied per turn through `quickPause` below.
 const CONFIRM_REDEMPTION_MS = 300;
 
+// Talking over the assistant has to be a voice held for a moment. A loud room crosses the start threshold
+// now and then, and each time it used to cut the assistant off mid-question. A burst that never gets this
+// far is still sent as a turn when it ends; if it was only noise the server ignores it, and the assistant
+// carries on as though nothing happened.
+const INTERRUPT_AFTER = 0.4;              // seconds of voice
+const INTERRUPT_CHANCE = 0.6;             // the average chance of voice across them
+
 // Silero has no longest-turn of its own: if it never calls the speech finished, nothing is ever sent. This
 // is the backstop the loudness detector had, and it is what stops a call listening forever.
 const LONGEST_TURN = 10;                  // seconds
@@ -74,6 +81,9 @@ export class VoiceMic {
     this.talking = false;
     this.frames = [];                     // this turn's audio, so a turn that never ends can still be sent
     this.talkingFor = 0;
+    this.voiceSum = 0;                    // chance of voice summed over this turn's frames, and how many
+    this.voiceFrames = 0;
+    this.interrupted = false;             // this turn has already stopped the assistant
     this._enabled = false;
     this._work = null;                    // start and pause, run one after another rather than at once
     this._quickPause = false;             // see the accessor below
@@ -201,6 +211,15 @@ export class VoiceMic {
     if (this.talking) {
       this.frames.push(new Float32Array(frame));
       this.talkingFor += frame.length / MIC_RATE;
+      this.voiceSum += this.chance;
+      this.voiceFrames += 1;
+      // Checked on every frame rather than once at the start: the assistant may begin speaking after they
+      // did, and that is talking over it just the same.
+      if (!this.interrupted && this.isSpeaking() && this.talkingFor >= INTERRUPT_AFTER
+          && this.voiceSum / this.voiceFrames >= INTERRUPT_CHANCE) {
+        this.interrupted = true;
+        this.onInterrupt();
+      }
       if (this.talkingFor >= LONGEST_TURN) this.tooLong();
     }
 
@@ -218,9 +237,10 @@ export class VoiceMic {
     this.talking = true;
     this.frames = [];
     this.talkingFor = 0;
+    this.voiceSum = 0;
+    this.voiceFrames = 0;
+    this.interrupted = false;
     this.onNote("voice started");
-    // Talking over the assistant is a real voice now, not merely a loud room, so this can be trusted.
-    if (this.isSpeaking()) this.onInterrupt();
     this.onSpeech();
   }
 
