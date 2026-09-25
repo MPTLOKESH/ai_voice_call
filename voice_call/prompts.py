@@ -140,6 +140,19 @@ STEP_TASKS = {
                "goodbye. Ask nothing else.",
 }
 
+# Wrapped round the task when the customer talked over the last reply. Handed only "Ask: …", the model
+# ignored whatever they had stopped it to say and carried straight on with the next question — which is
+# exactly what makes an interruption feel unheard. What they said comes first; the question waits a turn
+# if it has to.
+INTERRUPTED = """\
+They talked over you, so they may not have heard the end of your last reply. Deal with what they just said \
+before anything else:
+- If they answered what you were asking, take the answer and carry on: {task}
+- If they asked something, answer it from the facts you may share, or say a colleague will follow up. If they \
+made a comment, raised a worry or complained, respond to that. Keep to your usual length, stay within your \
+rules, and ask nothing else in this reply: the next question waits until they have had their answer. Leave \
+answers empty unless they actually gave one."""
+
 # Added to the turn once the call is near its time limit.
 HURRY = " Time is nearly up: about {left} seconds left, so keep this reply as short as you can."
 

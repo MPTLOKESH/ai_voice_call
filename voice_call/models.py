@@ -141,6 +141,13 @@ class Call:
     def add(self, speaker: str, text: str):
         self.transcript.append({"speaker": speaker, "text": text})
 
+    def cut_off(self):
+        """The customer talked over the last reply, so they may not have heard all of it."""
+        for line in reversed(self.transcript):
+            if line["speaker"] == "assistant":
+                line["cut_off"] = True
+                return
+
     def note(self, text: str):
         self.events.append({"at": round(self.seconds(), 1), "text": text})
 
@@ -151,7 +158,9 @@ class Call:
         return next((line["text"] for line in reversed(self.transcript) if line["speaker"] == "assistant"), "")
 
     def recent(self, turns: int = settings.RECENT_TURNS) -> str:
-        lines = [f"{'You' if t['speaker'] == 'assistant' else 'Customer'}: {t['text']}"
+        lines = [f"{'You' if t['speaker'] == 'assistant' else 'Customer'}"
+                 f"{' (they talked over this, so may not have heard all of it)' if t.get('cut_off') else ''}"
+                 f": {t['text']}"
                  for t in self.transcript[-turns:]]
         return "\n".join(lines) or "(the call has just started)"
 

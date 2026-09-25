@@ -238,6 +238,7 @@ class Handler(BaseHTTPRequestHandler):
         if call is None:
             return self.send_json({"error": "that call has finished or was never started"}, 404)
         speaking = self.headers.get("X-Speak", "1") != "0"
+        interrupted = self.headers.get("X-Interrupted") == "1"     # they talked over the last reply
 
         # Read the body off the socket before queueing behind another turn. It is still arriving on this
         # connection, and leaving it there would stall the socket rather than just the work.
@@ -262,7 +263,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.stream_reply(call, heard="", say="", ended=False, think_ms=0, heard_ms=heard_ms,
                                          with_audio=False, ignored=True)
 
-            result = engine.reply_to(call, heard)
+            result = engine.reply_to(call, heard, interrupted=interrupted)
             if result["ended"]:
                 storage.save_call(call)        # written before the goodbye, so "all confirmed" is true
             self.stream_reply(call, heard=heard, say=result["say"], ended=result["ended"],

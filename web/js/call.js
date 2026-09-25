@@ -17,6 +17,7 @@ let callBegan = 0;                // when this call started, so a note can be pl
 let serverEvents = [];            // what the server decided
 let notes = [];                   // what the browser saw: the two are drawn together
 let deadline = null;              // ends a call that goes quiet past its time limit
+let talkedOver = false;           // the next turn interrupted the assistant, and the server must know
 
 const NO_MIC = "No microphone available. A call is spoken, so check this page is allowed to use yours.";
 
@@ -81,16 +82,22 @@ async function openMic() {
     // mid-sentence. Call the turn off as well, and the server stops making speech nobody will hear.
     inFlight?.abort();
     player.stop();
+    // Stopping the voice is only half of it: the server still believes the whole reply was heard and
+    // would carry straight on to the next question. The turn this speech becomes says otherwise.
+    talkedOver = true;
+    [...el("transcript").querySelectorAll(".line.assistant")].pop()?.classList.add("cut");
     note("you talked over the assistant");
     if (callId) status("listening", "Listening");
   };
   mic.onTurn = (wav, spoken) => {
     if (!callId) return;                           // the call is over: whatever was said is not ours to send
     note(`recorded ${spoken.toFixed(1)}s`);
+    const interrupted = talkedOver;
+    talkedOver = false;
     // Not talking over the assistant (that is `onInterrupt`, which has already called the reply off), so
     // this may well be the room rather than the customer. Let the reply still arriving finish rather than
     // cut it off: if this turn was only noise, the customer should still hear the whole question.
-    run((signal) => api.sendAudio(callId, wav, speakOutLoud, hooks(), signal), { afterReply: true });
+    run((signal) => api.sendAudio(callId, wav, speakOutLoud, interrupted, hooks(), signal), { afterReply: true });
   };
   return mic;
 }
@@ -101,6 +108,7 @@ async function begin() {
   callBegan = performance.now();  // before the microphone opens, so its notes are on the clock too
   serverEvents = [];
   notes = [];
+  talkedOver = false;
 
   const context = await audioContext();
   player ??= new Player(context);

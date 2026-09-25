@@ -638,6 +638,9 @@ button.icon.danger:hover { color: var(--bad); background: color-mix(in srgb, var
   color: var(--accent-ink);
   border-bottom-right-radius: 6px;
 }
+/* A reply the customer talked over: they may not have heard the end of it. */
+.line.assistant.cut .bubble { opacity: .6; }
+.line.assistant.cut .bubble::after { content: " — cut off"; font-style: italic; color: var(--muted); }
 
 .controls { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 

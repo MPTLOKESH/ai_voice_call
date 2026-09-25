@@ -167,8 +167,11 @@ def start(setup: BusinessSetup, customer: dict | None = None) -> tuple[Call, str
     return call, greeting
 
 
-def reply_to(call: Call, message: str) -> dict:
+def reply_to(call: Call, message: str, interrupted: bool = False) -> dict:
     """One turn: what they said goes in, what the assistant says comes back.
+
+    `interrupted` is true when they talked over the last reply: what they said is dealt with before the
+    call moves on.
 
     Returns {"say": text, "ended": bool, "think_ms": int}.
     """
@@ -176,11 +179,15 @@ def reply_to(call: Call, message: str) -> dict:
         return {"say": "", "ended": True, "think_ms": 0}
 
     silent = not message.strip()
+    interrupted = interrupted and not silent
     if silent:
         call.silences += 1
         call.note(f"silence {call.silences}")
     else:
         call.silences = 0
+        if interrupted:
+            call.cut_off()
+            call.note("they talked over the assistant: dealing with what they said first")
         call.add("customer", message)
 
     hurry(call)
@@ -203,7 +210,8 @@ def reply_to(call: Call, message: str) -> dict:
     began = time.monotonic()
     final = final_question(call)                              # asked with "say goodbye once it's answered"
     read_back = reads_back(call)
-    turn = think(call, message, task_now(call))
+    task = task_now(call)
+    turn = think(call, message, prompts.INTERRUPTED.format(task=task) if interrupted else task)
     think_ms = int((time.monotonic() - began) * 1000)
 
     keep_answers(call, turn)

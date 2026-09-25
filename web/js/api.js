@@ -106,9 +106,13 @@ export const sayText = (callId, message, speak, hooks, signal) => turn({
   ...hooks,
 });
 
-export const sendAudio = (callId, wav, speak, hooks, signal) => turn({
+/** `interrupted`: they talked over the last reply, so the server deals with what they said first. */
+export const sendAudio = (callId, wav, speak, interrupted, hooks, signal) => turn({
   url: "/api/call/turn",
-  headers: { "Content-Type": "audio/wav", "X-Call-Id": callId, "X-Speak": speak ? "1" : "0" },
+  headers: {
+    "Content-Type": "audio/wav", "X-Call-Id": callId, "X-Speak": speak ? "1" : "0",
+    "X-Interrupted": interrupted ? "1" : "0",
+  },
   body: wav,
   signal,
   ...hooks,
