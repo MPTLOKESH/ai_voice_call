@@ -24,7 +24,7 @@ export function IconTile({ icon: Icon, tone = "brand", size = "md", className })
 /** A white panel on the canvas: a hairline edge, and barely any shadow. */
 export function Card({ as: Tag = "section", className, children, ...props }) {
   return (
-    <Tag className={cn("rounded-xl border border-line bg-white shadow-card", className)} {...props}>
+    <Tag className={cn("rounded-3xl border border-line bg-white shadow-card", className)} {...props}>
       {children}
     </Tag>
   );

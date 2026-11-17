@@ -7,14 +7,14 @@ from __future__ import annotations
 import re
 from typing import Callable, Iterator
 
-from . import elevenlabs, settings, speech
+from . import elevenlabs, scope, settings, speech
 from .models import BusinessSetup
 
 # Lines repeated within a call are made once and replayed.
-_remembered: dict[tuple[str, str, float], bytes] = {}
+_remembered: dict[tuple[str, str, str, float], bytes] = {}
 _REMEMBER_UP_TO = 40
 
-NO_KEY = ("ELEVENLABS_API_KEY is not set, so there is no voice. Put it in the .env file beside this project.")
+NO_KEY = ("There is no voice key to use. Add your own ElevenLabs key in Account, API keys.")
 
 
 def ready() -> bool:
@@ -71,7 +71,8 @@ def speak(text: str, setup: BusinessSetup,
 
     voice = voice_of(setup)
     for sentence in speech.sentences(text):
-        key = (voice, sentence, setup.speaking_speed)
+        # Filed under the person too: one person's replay must never be served to, or paid for by, another.
+        key = (scope.owner(), voice, sentence, setup.speaking_speed)
         if key in _remembered:
             yield _remembered[key]
             continue

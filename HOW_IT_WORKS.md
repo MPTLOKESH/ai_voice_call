@@ -24,7 +24,7 @@ what each piece does, what it's built with, and why it was built that way.
 ```
  BROWSER                                   SERVER (Python)                       SERVICES
  ───────                                   ───────────────                       ────────
- Setup page ──── save / suggest ─────────► server.py ── storage.py ──► config/business.json
+ Studio ──── save / publish / suggest ───► server.py ── storage.py ──► config/flows/<id>.json
                                                      └─ suggestions.py ─────────► Gemini
 
  Call page
@@ -101,7 +101,7 @@ frontend/                     the browser UI (React + Tailwind), built into web/
   src/index.css               the design tokens: colours, fonts
   public/vendor/              Silero model and ONNX Runtime, copied into the build as they are
 web/                          the built UI the server sends (made by `npm run build`; don't edit)
-config/business.json   your setup (written by Save, not in git)
+config/flows/          one JSON file per flow: its setup, status and where it is published (not in git)
 data/calls/            one JSON file per finished call (not in git)
 ```
 
@@ -109,11 +109,18 @@ data/calls/            one JSON file per finished call (not in git)
 
 ## 1. Setting the assistant up
 
-On the setup page a business fills in who it is, why it's calling, its tone, voice, rules, the facts the
-assistant may share, and the questions to ask.
+A business keeps one or more **flows**, listed on the Drafts page. Each is a name plus a setup: who it is, why
+it's calling, its tone, voice, rules, the facts the assistant may share, and the questions to ask. The Studio
+draws the setup as a line of steps (greeting, each question and its answer, close); what isn't a step is in
+the Settings drawer.
 
-- **Save** sends the form to `POST /api/setup`. Pydantic checks it (for example, speed must be between
-  0.7 and 1.2), and it is written to `config/business.json`.
+- **A draft saves itself** a moment after the last change, with `POST /api/flows/<id>`. Pydantic checks it
+  (for example, speed must be between 0.7 and 1.2), and it is written to `config/flows/<id>.json`. A draft
+  may be unfinished. The first time the app runs, an earlier `config/business.json` becomes the first flow.
+- **Publish** (`POST /api/flows/<id>/publish`) refuses a setup that would fail a call (no questions, no
+  purpose), then marks the flow Live or Scheduled and keeps its channels (Website, WhatsApp, Call), audience
+  and time. It does not send anything to anyone yet.
+- **New flow** and delete are `POST /api/flows` and `POST /api/flows/<id>/delete`.
 - **Suggest questions** sends the purpose to `POST /api/suggest`. Gemini returns 3–5 questions in the
   `Question` shape, and they're added to the list as ordinary, editable rows.
 - **Hear it** sends a sample line to `POST /api/hear` and plays it in the chosen voice and speed.

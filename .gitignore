@@ -3,6 +3,9 @@
 
 # your setup and your calls
 config/business.json
+config/flows/
+# database addresses and passwords, for contacts read from a database
+config/connections.json
 data/
 
 __pycache__/

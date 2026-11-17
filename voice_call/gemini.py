@@ -5,17 +5,19 @@ import copy
 import functools
 import threading
 import time
+from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, TypeVar
 
 from google import genai
 from google.genai import errors, types
 from pydantic import BaseModel
 
-from . import settings
+from . import credentials, settings, usage
 
 T = TypeVar("T", bound=BaseModel)
 
-_client: genai.Client | None = None
+_clients: dict[str, genai.Client] = {}
+_clients_lock = threading.Lock()
 
 # The model doing the thinking. It changes when one runs out of its daily quota.
 current = {"ai": settings.AI_MODELS[0]}
@@ -50,13 +52,38 @@ def take_notices() -> list[str]:
 _refused: set[str] = set()
 
 
-def client() -> genai.Client:
-    """One client, with a timeout: a hung request would otherwise stall a call indefinitely."""
-    global _client
-    if _client is None:
-        _client = genai.Client(api_key=settings.api_key(),
-                               http_options=types.HttpOptions(timeout=settings.REQUEST_TIMEOUT_MS))
-    return _client
+def client(key: str | None = None) -> genai.Client:
+    """A client for this key, with a timeout: a hung request would otherwise stall a call indefinitely.
+
+    One per key, made once. With no key given it is the server's own, which is what start-up checks for.
+    """
+    key = key or settings.api_key()
+    with _clients_lock:
+        if key not in _clients:
+            if len(_clients) > 200:                     # people come and go: do not keep every key ever seen
+                _clients.clear()
+            _clients[key] = genai.Client(api_key=key, http_options=types.HttpOptions(timeout=settings.REQUEST_TIMEOUT_MS))
+        return _clients[key]
+
+
+_day = ""
+
+
+def _quota_day() -> str:
+    """The free quota resets at midnight US Pacific; a fixed UTC-8 is close enough to know a new day has begun."""
+    return (datetime.now(timezone.utc) - timedelta(hours=8)).date().isoformat()
+
+
+def _new_day():
+    """A model that ran out yesterday has its quota back: start again from the first, not wherever it ended."""
+    global _day
+    today = _quota_day()
+    if today != _day:
+        _day = today
+        for kind, models in _lists.items():
+            if current[kind] != models[0]:
+                note(f"a new day: back to {models[0]}")
+            current[kind] = models[0]
 
 
 def next_model(kind: str) -> bool:
@@ -70,17 +97,25 @@ def next_model(kind: str) -> bool:
     return True
 
 
-def call_gemini(request: Callable[[str], Any], kind: str = "ai"):
-    """One request. `request` is given the model name, so a switch takes effect straight away."""
+def call_gemini(request: Callable[[str], Any], kind: str = "ai", source: str = "ours"):
+    """One request. `request` is given the model name, so a switch takes effect straight away.
+
+    Moving to the next model when one runs out is about OUR free quota, which everyone shares. A person's own key has
+    its own limits, so it never moves anyone else's model: it fails, with the reason.
+    """
+    _new_day()
     for attempt in range(4):
         try:
             return request(current[kind])
         except errors.APIError as exc:
+            if source == "own" and (exc.code or 0) in (400, 401, 403):
+                raise credentials.Blocked("Google rejected your own Gemini key. Check it in Account, API keys, or switch "
+                                          "to ours.", 400) from None
             if exc.code == 429 and "PerDay" in str(exc):
-                if next_model(kind):
+                if source == "ours" and next_model(kind):
                     continue
-                raise RuntimeError("Every model has used up its free quota for today. It resets at midnight US "
-                                   "Pacific time, or use a key with billing enabled.") from None
+                raise RuntimeError("Every model has used up its quota for today. It resets at midnight US Pacific time"
+                                   + (", or use a key with billing enabled." if source == "ours" else ".")) from None
             if (exc.code != 429 and (exc.code or 0) < 500) or attempt == 3:
                 raise
             time.sleep(2)
@@ -98,9 +133,10 @@ def ask_ai(output: type[T], prompt: str, *, system: str | None = None, temperatu
         system_instruction=system, temperature=temperature, response_mime_type="application/json",
         response_json_schema=plain_schema(output),
         thinking_config=types.ThinkingConfig(thinking_level=level))
+    key, source = credentials.resolve("gemini")
     try:
         response = call_gemini(
-            lambda model: client().models.generate_content(model=model, contents=prompt, config=config))
+            lambda model: client(key).models.generate_content(model=model, contents=prompt, config=config), source=source)
     except errors.APIError as exc:
         # A model that won't think at this level says so with a 400. Losing the turn over it would be
         # far worse than thinking a little longer, so fall back once and remember.
@@ -111,9 +147,20 @@ def ask_ai(output: type[T], prompt: str, *, system: str | None = None, temperatu
             return ask_ai(output, prompt, system=system, temperature=temperature,
                           thinking=settings.THINKING_ALWAYS_ALLOWED)
         raise
+    _record(response, source)
     if not response.text:
         raise RuntimeError("Gemini returned an empty response")
     return output.model_validate_json(response.text)
+
+
+def _record(response, source: str):
+    """What Gemini says this request used, written to the ledger. Thinking is billed as output."""
+    used = getattr(response, "usage_metadata", None)
+    if used is None:
+        return
+    usage.record("gemini", source, getattr(used, "prompt_token_count", 0) or 0,
+                 (getattr(used, "candidates_token_count", 0) or 0) + (getattr(used, "thoughts_token_count", 0) or 0),
+                 model=getattr(response, "model_version", "") or current["ai"])
 
 
 def plain_schema(model: type[BaseModel]) -> dict:

@@ -1,7 +1,7 @@
 import { cn } from "../../lib/cn.js";
 
 const TONES = {
-  neutral: "bg-black/[0.05] text-body",
+  neutral: "bg-fill text-body",
   good: "bg-good-soft text-good",
   bad: "bg-bad-soft text-bad",
   warn: "bg-warn-soft text-warn",
@@ -11,7 +11,7 @@ const TONES = {
 
 export function Badge({ tone = "neutral", className, children }) {
   return (
-    <span className={cn("inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium",
+    <span className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium",
                         TONES[tone], className)}>
       {children}
     </span>

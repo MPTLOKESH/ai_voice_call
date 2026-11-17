@@ -1,20 +1,22 @@
 """ElevenLabs for speaking and hearing.
 
-Used when ELEVENLABS_API_KEY is set. The key is read from the environment by name and never printed.
+Used when a key is available: the person's own, or ours from ELEVENLABS_API_KEY (see credentials.py). A key is
+never printed, and every request is written to the usage ledger.
 
 Speaking streams raw 24 kHz audio, which is the format the browser already plays, and the Flash model starts
 sending in well under a second. Hearing uses Scribe, which takes a finished recording like Gemini does.
 """
 from __future__ import annotations
 
+import hashlib
 import json
-import os
+import threading
 import urllib.error
 import urllib.request
 import uuid
 from typing import Iterator
 
-from . import settings
+from . import credentials, settings, usage
 
 BASE = "https://api.elevenlabs.io/v1"
 
@@ -29,26 +31,26 @@ LANGUAGE_CODES = {
 
 
 def available() -> bool:
-    return bool(os.getenv("ELEVENLABS_API_KEY", "").strip())
+    """Whether there is a key for the current person to speak with: their own, or ours."""
+    return credentials.available("elevenlabs")
 
 
-def _key() -> str:
-    key = os.getenv("ELEVENLABS_API_KEY", "").strip()
-    if not key:
-        raise RuntimeError("ELEVENLABS_API_KEY is not set")
-    return key
+def _fingerprint(key: str) -> str:
+    """What the per-key memories below are filed under. Not the key itself, and not reversible."""
+    return hashlib.sha256(key.encode()).hexdigest()[:16]
 
 
-def _explain(exc: urllib.error.HTTPError) -> str:
+def _explain(exc: urllib.error.HTTPError, source: str = "ours") -> str:
     """A readable reason, without ever including the key."""
-    reasons = {401: "the ElevenLabs key was rejected", 402: "the ElevenLabs account is out of credit",
+    whose = "your ElevenLabs key" if source == "own" else "the ElevenLabs key"
+    reasons = {401: f"{whose} was rejected", 402: f"{'your' if source == 'own' else 'the'} ElevenLabs account is out of credit",
                422: "ElevenLabs rejected the request", 429: "too many ElevenLabs requests at once"}
     return reasons.get(exc.code, f"ElevenLabs returned {exc.code}")
 
 
 # Higher rates need a paid plan, so the first one that is allowed is remembered and reused.
 FORMATS = [("pcm_24000", 24000), ("pcm_22050", 22050), ("pcm_16000", 16000)]
-_format: tuple[str, int] | None = None
+_formats: dict[str, tuple[str, int]] = {}         # per key: what a plan allows belongs to the account
 
 
 def _resampled(pieces: Iterator[bytes], from_rate: int, to_rate: int) -> Iterator[bytes]:
@@ -93,7 +95,9 @@ def _resampled(pieces: Iterator[bytes], from_rate: int, to_rate: int) -> Iterato
 def speak(text: str, voice_id: str | None = None, model: str | None = None,
           speed: float = 1.0) -> Iterator[bytes]:
     """Raw 24 kHz, 16-bit audio as it arrives, whatever rate the account is allowed to ask for."""
-    global _format
+    key, source = credentials.resolve("elevenlabs")
+    who = _fingerprint(key)
+    _format = _formats.get(who)
     voice_id = voice_id or settings.ELEVEN_VOICE
     body = json.dumps({
         "text": text,
@@ -105,15 +109,16 @@ def speak(text: str, voice_id: str | None = None, model: str | None = None,
         request = urllib.request.Request(
             f"{BASE}/text-to-speech/{voice_id}/stream?output_format={name}",
             data=body, method="POST",
-            headers={"xi-api-key": _key(), "Content-Type": "application/json", "Accept": "audio/pcm"})
+            headers={"xi-api-key": key, "Content-Type": "application/json", "Accept": "audio/pcm"})
         try:
             response = urllib.request.urlopen(request, timeout=30)
         except urllib.error.HTTPError as exc:
             if exc.code in (401, 403, 422) and not _format and (name, rate) != FORMATS[-1]:
                 continue                       # this rate needs a better plan: try a lower one
-            raise RuntimeError(_explain(exc)) from None
+            raise RuntimeError(_explain(exc, source)) from None
 
-        _format = (name, rate)
+        _formats[who] = (name, rate)
+        usage.record("speak", source, len(text), model=model or settings.ELEVEN_SPEAK_MODEL)
 
         def pieces():
             with response:
@@ -127,29 +132,34 @@ def speak(text: str, voice_id: str | None = None, model: str | None = None,
         return
 
 
-_voices: list[dict] | None = None
+_voices: dict[str, list[dict]] = {}              # per key: a voice library belongs to the account
+_voices_lock = threading.Lock()
 
 
 def voices() -> list[dict]:
-    """The voices this account can speak with, as {id, name, about}. Fetched once."""
-    global _voices
-    if _voices is None:
-        request = urllib.request.Request(f"{BASE}/voices", headers={"xi-api-key": _key()})
+    """The voices this person's key can speak with, as {id, name, about}. Fetched once per key."""
+    key, source = credentials.resolve("elevenlabs")
+    who = _fingerprint(key)
+    with _voices_lock:
+        if who in _voices:
+            return _voices[who]
+        request = urllib.request.Request(f"{BASE}/voices", headers={"xi-api-key": key})
         try:
             with urllib.request.urlopen(request, timeout=15) as response:
                 found = json.loads(response.read()).get("voices") or []
         except urllib.error.HTTPError as exc:
-            raise RuntimeError(_explain(exc)) from None
-        _voices = sorted(({
+            raise RuntimeError(_explain(exc, source)) from None
+        _voices[who] = sorted(({
             "id": voice.get("voice_id", ""), "name": voice.get("name", ""),
             "about": ", ".join(value for key in ("gender", "accent", "age", "description")
                                if (value := (voice.get("labels") or {}).get(key))),
         } for voice in found if voice.get("voice_id")), key=lambda voice: voice["name"].lower())
-    return _voices
+        return _voices[who]
 
 
 def transcribe(wav_bytes: bytes, language: str = "") -> str:
     """A finished recording in, the words out."""
+    key, source = credentials.resolve("elevenlabs")
     boundary = f"----voicecall{uuid.uuid4().hex}"
     code = LANGUAGE_CODES.get(language.strip().lower())
 
@@ -171,10 +181,13 @@ def transcribe(wav_bytes: bytes, language: str = "") -> str:
 
     request = urllib.request.Request(
         f"{BASE}/speech-to-text", data=b"".join(parts), method="POST",
-        headers={"xi-api-key": _key(), "Content-Type": f"multipart/form-data; boundary={boundary}"})
+        headers={"xi-api-key": key, "Content-Type": f"multipart/form-data; boundary={boundary}"})
 
     try:
         with urllib.request.urlopen(request, timeout=30) as response:
-            return (json.loads(response.read()).get("text") or "").strip()
+            heard = (json.loads(response.read()).get("text") or "").strip()
     except urllib.error.HTTPError as exc:
-        raise RuntimeError(_explain(exc)) from None
+        raise RuntimeError(_explain(exc, source)) from None
+    # A 16-bit mono recording at the microphone's rate: its length says how many seconds were heard.
+    usage.record("hear", source, max(len(wav_bytes) - 44, 0) / (2 * settings.MIC_RATE), model=settings.ELEVEN_HEAR_MODEL)
+    return heard

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { cn } from "../../lib/cn.js";
 
 /** A button that opens a small panel beneath it. Closes on a click elsewhere or Escape. */
-export function Menu({ trigger, label, align = "right", className, children }) {
+export function Menu({ trigger, label, align = "right", side = "below", buttonClassName, className, children }) {
   const [open, setOpen] = useState(false);
   const holder = useRef(null);
 
@@ -21,14 +21,18 @@ export function Menu({ trigger, label, align = "right", className, children }) {
   return (
     <div ref={holder} className="relative">
       <button type="button" aria-label={label} aria-expanded={open} onClick={() => setOpen(!open)}
-              className={cn("grid size-9 place-items-center rounded-lg text-body transition hover:bg-black/[0.05] hover:text-ink",
-                            open && "bg-black/[0.07] text-ink")}>
+              className={buttonClassName || cn("grid size-9 place-items-center rounded-full text-body transition hover:bg-fill hover:text-ink",
+                                        open && "bg-active text-ink")}>
         {trigger}
       </button>
       {open && (
-        <div className={cn("absolute top-11 z-40 w-72 rounded-xl bg-white p-1.5 shadow-float",
+        // Choosing something closes it.
+        <div onClick={(event) => { if (event.target.closest("button")) setOpen(false); }}
+             className={cn("absolute z-40 w-72 rounded-2xl border border-line bg-white p-1.5 shadow-float",
                            "animate-[toast-in_.16s_ease-out]",
-                           align === "right" ? "right-0" : "left-0", className)}>
+                           // "beside" opens to the right of the button, bottom edges level: for a rail down the left
+                           side === "beside" ? "bottom-0 left-full ml-3"
+                             : cn("top-11", align === "right" ? "right-0" : "left-0"), className)}>
           {children}
         </div>
       )}

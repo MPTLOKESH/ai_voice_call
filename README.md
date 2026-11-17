@@ -16,6 +16,35 @@ It opens `http://127.0.0.1:8000`. Your `GEMINI_API_KEY` is read from a `.env` fi
 above it. Nothing needs installing beyond `requirements.txt`: the server uses Python's own standard library,
 and the browser UI is already built into `web/`.
 
+## Accounts, keys and usage
+
+Everyone signs in. The first account made is the administrator and takes over any flows, calls and contacts from
+before accounts existed; after that each person's data is kept in `data/users/<id>/`, apart from everyone else's.
+
+A **default account** is made at every start if it is missing, so there is always one to sign in with:
+`admin@voicecall.local` / `voicecall-admin`, printed in the console. Change its password under Account, Security
+(it is never put back), or set `DEFAULT_ADMIN_EMAIL` / `DEFAULT_ADMIN_PASSWORD` in `.env`. On a server that looks
+public (`PUBLIC_URL` not local, or `COOKIE_SECURE=1`) the built-in password is not used: set your own, or none is made.
+`DISABLE_DEFAULT_ADMIN=1` turns it off.
+
+Each person can use **our keys** (`GEMINI_API_KEY`, `ELEVENLABS_API_KEY` in `.env`, within a free monthly allowance)
+or **their own**, set under Account, API keys. Own keys are checked with the provider, stored encrypted, and never
+shown again. Usage is written to a ledger from what the providers report, and shown under Account, Usage.
+
+Settings, all in `.env` and all optional on your own machine:
+
+| Setting | What it does |
+|---|---|
+| `VC_MASTER_KEY` | Encrypts saved keys. 32 random bytes, URL-safe base64: `python -m voice_call.vault` prints one. Set it on a real server and keep it out of the data folder. Without it a key file is made in `data/`. |
+| `SIGNUP_CODE` | If set, making an account needs this invite code. |
+| `FREE_ALLOWANCE_USD` | Monthly allowance per account on our keys, in estimated dollars (default 1.00). Prices are in `settings.PRICES`: check them. The administrator can change any one account's. |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `MAIL_FROM` | Sends confirmation and reset emails. Without `SMTP_HOST` emails are printed in the console and addresses are not confirmed. |
+| `PUBLIC_URL` | The address people reach the app at, used in email links. |
+| `COOKIE_SECURE=1` | Marks the session cookie Secure. Set it behind HTTPS (or have the proxy send `X-Forwarded-Proto: https`). |
+| `ALLOW_PRIVATE_DB=1` | Lets non-administrators connect to databases on private networks. Off by default. |
+
+Put the app behind HTTPS before real people use it.
+
 ## Changing the UI
 
 The pages are React + Tailwind CSS in `frontend/`. You need Node.js 20 or newer, but only to change them:
@@ -117,11 +146,11 @@ voice_call/
   storage.py      the setup, and finished calls
   server.py       the browser UI
 frontend/          the browser UI: React + Tailwind, built with Vite
-  src/components/  layout (top bar, tab bar) · setup · call · history · ui (buttons, fields, cards)
+  src/components/  layout (rail, tab bar) · drafts · studio · voices · call · history · ui (buttons, fields, cards)
   src/lib/         callSession (a call's turns and interruptions) · setupForm · vad · audio · api
   public/vendor/   Silero model and ONNX Runtime
 web/               the built UI the server sends (from `npm run build`; don't edit by hand)
-config/business.json   your setup, written by the Save button
+config/flows/          your flows (setups), saved as you edit them
 data/calls/            one file per call
 ```
 

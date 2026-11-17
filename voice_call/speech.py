@@ -13,7 +13,7 @@ def sentences(text: str) -> list[str]:
     pieces, current = [], ""
     for character in text:
         current += character
-        if character in ".!?" and len(current.strip()) > 12:
+        if character in ".!?।。" and len(current.strip()) > 12:
             pieces.append(current.strip())
             current = ""
     if current.strip():

@@ -1,3 +1,10 @@
 google-genai>=1.30.0
 python-dotenv>=1.0.0
 pydantic>=2.6
+cryptography>=42.0         # encrypts people's own API keys and saved database passwords
+
+# Optional, for contacts:
+#   openpyxl            importing Excel (.xlsx) files; CSV works without it
+#   psycopg[binary]     reading contacts from PostgreSQL
+#   pymysql             reading contacts from MySQL
+# SQLite databases need nothing extra.

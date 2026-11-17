@@ -1,29 +1,80 @@
 import {
   ChevronRight, Circle, CircleCheck, CircleMinus, CircleX, ClipboardCheck, MicOff, PhoneOff, RotateCcw, RotateCw,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { cn } from "../../lib/cn.js";
-import { Badge } from "../ui/Badge.jsx";
 import { Button } from "../ui/Button.jsx";
 import { Card, IconTile } from "../ui/Card.jsx";
 import { Presence } from "./LevelMeter.jsx";
 import { StartPanel } from "./StartPanel.jsx";
 
 /** A test call: the start panel before it, the live conversation during it, the outcome after. */
-export function CallPage({ session, setup }) {
+export function CallPage({ session, setup, flowName, onSend }) {
   const state = useSyncExternalStore(session.subscribe, session.getSnapshot);
+  // Timings, the decision log and the like are for someone tuning a flow, so they stay out of the way.
+  const [details, setDetails] = useState(() => { try { return localStorage.getItem("voice-call-details") === "1"; } catch { return false; } });
+  const showDetails = (value) => { setDetails(value); try { localStorage.setItem("voice-call-details", value ? "1" : "0"); } catch { /* optional */ } };
 
-  if (state.phase === "ready") return <StartPanel session={session} state={state} setup={setup} />;
+  if (state.phase === "ready") return <StartPanel session={session} state={state} setup={setup} flowName={flowName} />;
 
   // Two things only: the call itself, and what it has saved. The rest is folded away until it's wanted.
   return (
-    <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1fr)_360px]">
-      <Card className="flex min-w-0 flex-col overflow-hidden">
-        <Stage session={session} state={state} setup={setup} />
-        <Conversation state={state} />
-      </Card>
-      <Answers state={state} setup={setup} />
-    </div>
+    <>
+      {state.phase === "ended" && <Result state={state} setup={setup} session={session} onSend={onSend} />}
+      <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <Card className="flex min-w-0 flex-col overflow-hidden">
+          <Stage session={session} state={state} setup={setup} details={details} />
+          <Conversation state={state} />
+        </Card>
+        <Answers state={state} setup={setup} details={details} />
+      </div>
+      <label className="mt-6 flex w-fit cursor-pointer items-center gap-2 text-[13px] text-muted hover:text-ink">
+        <input type="checkbox" checked={details} onChange={(event) => showDetails(event.target.checked)} className="size-4 accent-[var(--color-brand)]" />
+        Show technical details (timings and the decision log)
+      </label>
+    </>
+  );
+}
+
+const length = (seconds) => {
+  const whole = Math.round(seconds || 0);
+  return whole >= 60 ? `${Math.floor(whole / 60)} min ${whole % 60} s` : `${whole} s`;
+};
+
+/** How a test went, in a line a business owner can act on, with what to do next. */
+function Result({ state, setup, session, onSend }) {
+  const asked = (setup?.questions || []).filter((one) => (one.kind || "ask") === "ask");
+  const answers = Object.keys(state.call?.answers || {}).length;
+  const missing = state.call?.missing_required || [];
+  const good = state.outcome?.outcome === "completed";
+  const wording = {
+    "hung up": "The call was closed before it finished.", "no answer": "Nobody answered, so it hung up.",
+    "wants_to_stop": "They asked to stop.", "took too long": "It ran past the time limit.",
+  }[state.outcome?.end_reason];
+
+  return (
+    <Card className={cn("mb-6 flex flex-wrap items-center gap-x-6 gap-y-3 px-6 py-5", good ? "border-good/30" : "border-warn/40")}>
+      <span className={cn("grid size-11 place-items-center rounded-full", good ? "bg-good-soft text-good" : "bg-warn-soft text-warn")}>
+        {good ? <CircleCheck aria-hidden="true" className="size-6" /> : <CircleMinus aria-hidden="true" className="size-6" />}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[17px] font-semibold text-ink">
+          {good ? "That worked." : "It did not get every answer."}
+          <span className="ml-2 text-[14px] font-normal text-muted">
+            {answers} of {asked.length} answers · {length(state.call?.seconds)}
+          </span>
+        </p>
+        <p className="mt-0.5 text-[14px] text-body">
+          {state.summary || (state.summary === "" ? "" : "Writing a summary…")}
+          {!good && missing.length > 0 && ` Still missing: ${missing.join(", ").replace(/_/g, " ")}.`}
+          {wording && ` ${wording}`}
+        </p>
+      </div>
+      <div className="flex gap-2">
+        <Button variant="secondary" icon={RotateCcw} onClick={() => session.reset()}>Try again</Button>
+        {onSend && <Button variant="primary" onClick={onSend}>Next: send it</Button>}
+      </div>
+    </Card>
   );
 }
 
@@ -43,7 +94,7 @@ function CallControl({ icon: Icon, label, onClick, tone = "plain", title }) {
 }
 
 /** Who's talking and how the call is going: the assistant as an orb, the clock, and the call controls. */
-function Stage({ session, state, setup }) {
+function Stage({ session, state, setup, details }) {
   const { heard, think, speak, total } = state.timings;
   const ms = (value) => (value ? `${value} ms` : "–");
   const live = state.phase === "live";
@@ -60,24 +111,24 @@ function Stage({ session, state, setup }) {
         <div className="mt-7 flex items-start justify-center gap-10">
           {live ? (
             <>
-              <CallControl icon={MicOff} label="Say nothing" title="A turn where the customer says nothing"
+              <CallControl icon={MicOff} label="Stay silent" title="Pretend the customer says nothing, to see what it does"
                            onClick={() => session.sayNothing()} />
-              <CallControl icon={PhoneOff} label="End call" tone="end" onClick={() => session.hangUp()} />
+              <CallControl icon={PhoneOff} label="Hang up" title="Pretend the customer hangs up" tone="end" onClick={() => session.hangUp()} />
             </>
           ) : (
             <Button variant="primary" icon={RotateCcw} onClick={() => session.reset()}>New call</Button>
           )}
         </div>
 
-        {/* How quick the last turn was, for whoever is tuning it: kept to one quiet line */}
-        <dl className="mt-7 flex flex-wrap justify-center gap-x-4 gap-y-1 text-[12px] text-muted">
+        {/* How quick the last turn was, for whoever is tuning it */}
+        {details && <dl className="mt-7 flex flex-wrap justify-center gap-x-4 gap-y-1 text-[12px] text-muted">
           {[["Heard", ms(heard)], ["Thought", ms(think)], ["First audio", ms(speak)]].map(([label, value]) => (
             <div key={label} className="flex gap-1.5">
               <dt>{label}</dt>
               <dd className="font-mono text-body tabular-nums">{value}</dd>
             </div>
           ))}
-        </dl>
+        </dl>}
       </div>
     </div>
   );
@@ -101,7 +152,7 @@ function Conversation({ state }) {
       <ol ref={scroller} aria-label="Conversation"
           className="flex max-h-[52vh] min-h-64 flex-1 flex-col gap-1.5 overflow-y-auto bg-canvas/60 px-4 py-6 sm:px-8">
         {state.transcript.length === 0 && (
-          <li className="m-auto text-sm text-muted">Connecting…</li>
+          <li className="m-auto text-sm text-muted">Connecting… the assistant will speak first.</li>
         )}
         {state.transcript.map((line, at) => {
           const customer = line.who === "customer";
@@ -125,7 +176,7 @@ function Conversation({ state }) {
 
       <footer className="border-t border-line px-5 py-3 text-center text-[12px] text-muted sm:px-8">
         {!live ? "The call has ended."
-          : state.interruptible ? "Just talk. Interrupt whenever you like."
+          : state.interruptible ? "Just talk, as you would on the phone. You can interrupt it."
           : "Just talk. Wait for it to finish before you answer."}
       </footer>
     </div>
@@ -140,9 +191,10 @@ const MARKS = {
   unneeded: [CircleMinus, "text-muted"],
 };
 
-function Answers({ state, setup }) {
+function Answers({ state, setup, details }) {
   const call = state.call;
-  const questions = setup?.questions || [];
+  // Messages and ends have no answer to wait for: only the questions are listed.
+  const questions = (setup?.questions || []).filter((one) => (one.kind || "ask") === "ask");
   const done = call ? Object.keys(call.answers || {}).length : 0;
   const share = questions.length ? Math.round((done / questions.length) * 100) : 0;
 
@@ -161,18 +213,6 @@ function Answers({ state, setup }) {
         </div>
       </div>
 
-      {state.phase === "ended" && state.outcome && (
-        <div className="mx-5 mb-5 flex flex-col gap-2 rounded-lg border border-line px-4 py-3">
-          <div className="flex items-center gap-2">
-            <Badge tone={state.outcome.outcome === "completed" ? "good" : "warn"}>
-              {state.outcome.outcome === "completed" ? "Completed" : "Incomplete"}
-            </Badge>
-            {state.outcome.end_reason && <span className="text-xs text-muted">{state.outcome.end_reason}</span>}
-          </div>
-          {state.summary && <p className="text-[13px] leading-relaxed text-body">{state.summary}</p>}
-        </div>
-      )}
-
       <ul className="border-t border-line">
         {questions.map((question) => {
           const name = question.save_as;
@@ -189,7 +229,7 @@ function Answers({ state, setup }) {
               <Mark aria-hidden="true" className={cn("mt-0.5 size-4 shrink-0", colour)} strokeWidth={2} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline justify-between gap-3">
-                  <span className="truncate text-[12px] text-muted">{name.replace(/_/g, " ")}</span>
+                  <span className="text-[13px] text-body">{question.ask || name.replace(/_/g, " ")}</span>
                   {!answered && (
                     <span className={cn("shrink-0 text-xs", tries && !skipped ? "text-warn" : "text-muted")}>{status}</span>
                   )}
@@ -205,7 +245,7 @@ function Answers({ state, setup }) {
           );
         })}
       </ul>
-      <DecisionLog state={state} />
+      {details && <DecisionLog state={state} />}
     </Card>
   );
 }

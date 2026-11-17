@@ -51,9 +51,21 @@ SECONDS_PER_EXCHANGE = 10       # roughly one question, its answer and the reply
 MIC_RATE = 16_000               # what the browser sends us
 SPEAKER_RATE = 24_000           # what ElevenLabs speaks at, and what the browser plays
 
+# What using our keys costs, to turn usage into one comparable number. These are estimates: check them against the
+# providers' pricing pages and change them here. Shown to people as "estimated", never as a bill.
+PRICES = {
+    "gemini": {"in_per_million_tokens": 0.10, "out_per_million_tokens": 0.40},   # a flash-lite class model
+    "speak": {"per_1000_characters": 0.05},                                      # ElevenLabs Flash
+    "hear": {"per_hour": 0.40},                                                  # ElevenLabs Scribe
+}
+# The free allowance each account gets on OUR keys each month, in those same dollars. Own keys are not counted.
+# The person running the server can give any one account more or less.
+FREE_ALLOWANCE_USD = float(os.getenv("FREE_ALLOWANCE_USD") or 1.0)
+
 PROJECT = Path(__file__).resolve().parent.parent
 DATA_FOLDER = PROJECT / "data"
-CONFIG_FILE = PROJECT / "config" / "business.json"
+CONFIG_FILE = PROJECT / "config" / "business.json"      # the one setup of earlier versions: becomes the first flow
+FLOWS_FOLDER = PROJECT / "config" / "flows"
 WEB_FOLDER = PROJECT / "web"
 
 

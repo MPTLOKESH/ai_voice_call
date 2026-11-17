@@ -4,6 +4,7 @@ The AI proposes; `keep_answers` and `next_step` are the only places a value is s
 """
 from __future__ import annotations
 
+import re
 import time
 from datetime import date
 
@@ -36,16 +37,23 @@ def background(call: Call) -> str:
     return prompts.ASSISTANT_BACKGROUND.format(
         assistant=setup.assistant_name, business=setup.business_name, purpose=setup.purpose,
         calling_from=f", from {setup.calling_from.strip()}" if setup.calling_from.strip() else "",
-        customer=", ".join(f"{k}: {v}" for k, v in call.customer.items()) or "nothing known",
+        customer=", ".join(f"{k}: {v}" for k, v in call.customer.items() if k != "id") or "nothing known",
         info="\n".join(f"- {i}" for i in setup.business_info) or "- (none)",
         rules="\n".join(f"- {r}" for r in setup.rules) or "- (none)",
-        questions="\n".join(describe(q) for q in setup.questions),
+        questions="\n".join(describe(q) for q in setup.questions if q.kind == "ask"),
         tone=prompts.TONES[setup.tone], speaking=speaking(setup),
         disclosure=prompts.DISCLOSURE[setup.ai_disclosure],
         limit=f"{setup.max_minutes:g} minute{'' if setup.max_minutes == 1 else 's'}")
 
 
 HOW_MANY = {1: "once", 2: "twice"}
+
+# Said plainly, these end the call however short they are. Other short "stop" guesses are usually a mishearing.
+PLAIN_STOP = re.compile(r"\b(stop|bye|goodbye|hang up|not interested|no thanks?|no thank you|leave me alone|"
+                        r"don'?t (want|call)|do not (want|call))\b", re.I)
+# Asking never to be called again: the call ends, and the contact is opted out.
+NEVER_AGAIN = re.compile(r"\b(don'?t|do not|never|stop)\b.{0,25}\b(call|ring|phone|contact)[a-z]*\b.{0,20}\b(me|us|again|anymore|any more)\b"
+                         r"|\btake me off\b|\bremove (me|my number)\b|\bunsubscribe\b|\bdo not call (list|registry)\b", re.I)
 
 
 def hurry(call: Call):
@@ -77,12 +85,30 @@ def final_question(call: Call) -> Question | None:
     return left[0] if not reads_back(call) and len(left) == 1 and call.step != "confirm" else None
 
 
+def told(messages: list[Question]) -> str:
+    return " ".join(q.ask.strip() for q in messages if q.ask.strip())
+
+
+def trailing_says(call: Call) -> list[Question]:
+    """Messages with no condition that come after the last question, still to be told."""
+    steps = call.setup.questions
+    last = max((at for at, q in enumerate(steps) if q.kind == "ask"), default=-1)
+    return [q for q in steps[last + 1:] if q.kind == "say" and not q.only_if and q.save_as not in call.said]
+
+
 def task_now(call: Call) -> str:
     """What the assistant should be doing on this turn."""
+    owed = told(call.pending_says())
     if call.step == "confirm" or not call.unanswered():
+        if owed:
+            return prompts.STEP_TASKS["say_then_confirm"].format(message=owed, confirm=prompts.STEP_TASKS["confirm"])
         return prompts.STEP_TASKS["confirm"]
 
-    last = prompts.LAST_QUESTION if final_question(call) else ""
+    after = told(trailing_says(call))
+    if final_question(call):
+        last = prompts.LAST_QUESTION_SAY.format(message=after) if after else prompts.LAST_QUESTION
+    else:
+        last = ""
     question = call.unanswered()[0]
     # `failed` is the count code keeps of answers it refused. The model has no memory between turns and
     # only sees the last few lines, so without being told it cannot tell a first ask from a third — and it
@@ -90,6 +116,8 @@ def task_now(call: Call) -> str:
     # understood. Telling it is what makes "ask it differently" something it can actually do.
     tries = call.failed.get(question.save_as, 0)
     if not tries:
+        if owed:
+            return prompts.STEP_TASKS["say_then_ask"].format(message=owed, question=question.ask) + last
         return prompts.STEP_TASKS["ask"].format(question=question.ask) + last
     return prompts.STEP_TASKS["ask_again"].format(
         question=question.ask, tries=HOW_MANY.get(tries, f"{tries} times")) + last
@@ -147,6 +175,50 @@ def next_step(call: Call, intent: str) -> tuple[str, str | None]:
     if call.unanswered():
         return "ask", None
     return ("confirm", None) if reads_back(call) else ("finish", done)
+
+
+def end_here(call: Call, step: Question, message: str, think_ms: int = 0) -> dict:
+    """An end step's condition is met: say its words (or a goodbye of the AI's own) and finish.
+
+    The questions after it are not asked, so they cannot make the call incomplete: only what was meant to
+    be asked before it counts.
+    """
+    steps = call.setup.questions
+    call.cut.update(q.save_as for q in steps[steps.index(step) + 1:] if q.kind == "ask")
+    call.outcome = "incomplete" if call.missing_required() else "completed"
+    call.handoff = step.handoff
+    call.end_reason = "handoff" if step.handoff else "ended early"
+    call.note(f"{'handing over' if step.handoff else 'ending early'} ({step.save_as}): {call.outcome}")
+    call.step = "finish"
+    say = step.ask.strip()
+    if not say:
+        began = time.monotonic()
+        task = prompts.STEP_TASKS["handoff" if step.handoff else "end_early"]
+        say = think(call, message, task).reply
+        think_ms += int((time.monotonic() - began) * 1000)
+    call.add("assistant", say)
+    return {"say": say, "ended": True, "think_ms": think_ms}
+
+
+def go_back(call: Call, loop: Question, message: str, think_ms: int = 0) -> dict:
+    """A loop step's condition is met: forget the answers from the step it names up to the loop, and ask
+    from there again. The reply already written was for moving on, so a new one is written for going back.
+    """
+    again = call.loop_range(loop)
+    for q in again:
+        call.answers.pop(q.save_as, None)
+        call.skipped.discard(q.save_as)
+        call.failed.pop(q.save_as, None)
+    call.loops[loop.save_as] = call.loops.get(loop.save_as, 0) + 1
+    call.note(f"going back to {loop.back_to} ({loop.save_as}): time {call.loops[loop.save_as]} of {loop.times}")
+    call.step = "ask"
+    began = time.monotonic()
+    words = loop.ask.strip()
+    task = prompts.STEP_TASKS["go_back"].format(
+        message=f", say this in your own words: {words}" if words else "", question=call.unanswered()[0].ask)
+    say = think(call, message, task).reply
+    call.add("assistant", say)
+    return {"say": say, "ended": False, "think_ms": think_ms + int((time.monotonic() - began) * 1000)}
 
 
 def opening(call: Call) -> str:
@@ -211,17 +283,39 @@ def reply_to(call: Call, message: str, interrupted: bool = False) -> dict:
     final = final_question(call)                              # asked with "say goodbye once it's answered"
     read_back = reads_back(call)
     task = task_now(call)
+    owed = call.pending_says()                                # told in this reply, so not told again
     turn = think(call, message, prompts.INTERRUPTED.format(task=task) if interrupted else task)
     think_ms = int((time.monotonic() - began) * 1000)
 
+    call.said.update(q.save_as for q in owed)
     keep_answers(call, turn)
+    if final is not None and final.save_as in call.answers:   # its reply carried the messages that follow it
+        call.said.update(q.save_as for q in trailing_says(call))
 
     # A few stray words are usually a mis-hearing, not someone asking to end the call. Ending on that is
     # far worse than asking again, so only a real sentence may stop a call.
     intent = turn.intent
-    if intent == "wants_to_stop" and len(message.split()) < 3:
+    if NEVER_AGAIN.search(message):
+        call.opt_out = True
+        call.note("they asked not to be called again: opting them out")
+        intent = "wants_to_stop"
+    elif intent != "wants_to_stop" and PLAIN_STOP.search(message) and len(message.split()) <= 4:
+        intent = "wants_to_stop"
+        call.note(f"treating {message!r} as a request to stop")
+    if intent == "wants_to_stop" and len(message.split()) < 3 and not PLAIN_STOP.search(message) and not call.opt_out:
         call.note(f"ignoring 'wants to stop' from {message!r}: too short to be sure")
         intent = "answering"
+
+    # An end step whose condition has just been met ends the call here, whatever the reply was written for.
+    stop = call.triggered_end() if intent != "wants_to_stop" else None
+    if stop is not None:
+        return end_here(call, stop, message, think_ms)
+
+    # A loop step whose condition has just been met sends the call back, before anything else is decided.
+    again = call.triggered_loop() if intent != "wants_to_stop" else None
+    if again is not None:
+        return go_back(call, again, message, think_ms)
+
     step, outcome = next_step(call, intent)
     if step != call.step:
         call.note(f"step: {call.step} -> {step}")
@@ -237,7 +331,12 @@ def reply_to(call: Call, message: str, interrupted: bool = False) -> dict:
             # The reply was written to ask something, not to end on: the last answer came early, or the
             # last question was given up on. It needs a goodbye of its own.
             began = time.monotonic()
-            say = think(call, message, prompts.STEP_TASKS["goodbye"]).reply
+            leftover = [q for q in call.setup.questions
+                        if q.kind == "say" and q.save_as not in call.said and call.applies(q) is True]
+            task = (prompts.STEP_TASKS["say_then_goodbye"].format(message=told(leftover)) if told(leftover)
+                    else prompts.STEP_TASKS["goodbye"])
+            say = think(call, message, task).reply
+            call.said.update(q.save_as for q in leftover)
             think_ms += int((time.monotonic() - began) * 1000)
             call.note("wrote a goodbye: the reply was not one")
         call.add("assistant", say)
